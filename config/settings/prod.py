@@ -1,0 +1,14 @@
+import os
+
+from .base import *
+
+DEBUG = False
+SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "").split(",")
+
+SECURE_SSL_REDIRECT = True
+SECURE_HSTS_SECONDS = 60 * 60 * 24 * 30
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True

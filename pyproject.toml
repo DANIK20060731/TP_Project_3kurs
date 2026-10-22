@@ -1,0 +1,104 @@
+[project]
+name = "peer-review"
+version = "0.1.0"
+description = "Платформа peer-review студенческих работ (курсовая, ГУАП)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "django>=5.2,<6",
+    "django-htmx>=1.21",
+    "dj-database-url>=2.3",
+    "psycopg[binary]>=3.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-django>=4.9",
+    "pytest-cov>=6.0",
+    "pytest-xdist>=3.6",
+    "pytest-playwright>=0.6",
+    "factory-boy>=3.3",
+    "hypothesis>=6.120",
+    "freezegun>=1.5",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "django-stubs[compatible-mypy]>=5.1",
+    "djlint>=1.36",
+    "pip-audit>=2.7",
+    "pre-commit>=4.0",
+]
+
+[tool.uv]
+package = false
+
+# ---------------------------------------------------------------- ruff
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["**/migrations/*"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W", "F",   # pycodestyle, pyflakes
+    "I",             # isort
+    "B",             # bugbear
+    "UP",            # pyupgrade
+    "S",             # bandit (security)
+    "DJ",            # django
+    "SIM", "C4", "RET", "PTH",
+    "N",             # naming
+]
+ignore = ["RET504"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "S311", "S603", "S607"]
+"**/settings/*" = ["F403", "F405"]
+".claude/hooks/*" = ["S603", "S607", "T201"]
+
+# ---------------------------------------------------------------- mypy
+[tool.mypy]
+python_version = "3.12"
+plugins = ["mypy_django_plugin.main"]
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+check_untyped_defs = true
+exclude = ["migrations/", ".venv/", ".claude/"]
+
+[tool.django-stubs]
+django_settings_module = "config.settings.test"
+
+# Ядро домена — чистый Python, проверяем строго.
+[[tool.mypy.overrides]]
+module = ["apps.allocation.*", "apps.quality.*"]
+strict = true
+
+# ---------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "e2e: браузерные тесты Playwright (make e2e)",
+    "slow: долгие тесты, не входят в check-fast",
+]
+filterwarnings = ["error::DeprecationWarning:apps.*"]
+
+# ---------------------------------------------------------------- coverage
+[tool.coverage.run]
+source = ["apps", "config"]
+omit = ["**/migrations/*", "config/wsgi.py", "config/asgi.py", "config/settings/prod.py"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+skip_covered = true
+exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError"]
+
+# ---------------------------------------------------------------- djlint
+[tool.djlint]
+profile = "django"
+indent = 2
+ignore = "H006,H030,H031"
