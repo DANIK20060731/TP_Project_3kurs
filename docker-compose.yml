@@ -1,0 +1,26 @@
+# Локальная инфраструктура. Без Docker проект работает на SQLite —
+# Postgres используется в CI и при `make up`.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: peerreview
+      POSTGRES_USER: peerreview
+      POSTGRES_PASSWORD: peerreview
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U peerreview"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    ports: ["6379:6379"]
+
+  mailpit:  # перехват писем-напоминаний: http://localhost:8025
+    image: axllent/mailpit:v1.21
+    ports: ["1025:1025", "8025:8025"]
+
+volumes:
+  pgdata:
