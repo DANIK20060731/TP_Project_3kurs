@@ -80,6 +80,44 @@ def test_guard_files_protect_tests_mode(project):
     assert run_hook(project, "guard_files.py", edit(project, "apps/a.py")).returncode == 0
 
 
+def test_protect_tests_allows_new_e2e_test(project):
+    """e2e-tester закрепляет сценарий новым файлом, пока действует protect-tests."""
+    set_flag(project, "protect-tests")
+    event = edit(project, "tests/e2e/test_feature_e2e.py")
+    assert run_hook(project, "guard_files.py", event).returncode == 0
+
+
+def test_protect_tests_keeps_committed_e2e_spec_frozen(project):
+    """E2E-тест, зафиксированный в git, — такая же спецификация, как и остальные."""
+    spec = project / "tests" / "e2e" / "test_spec_e2e.py"
+    spec.parent.mkdir(parents=True)
+    spec.write_text("# spec\n")
+    subprocess.run(["git", "add", "."], cwd=project, check=True)
+    set_flag(project, "protect-tests")
+    event = edit(project, "tests/e2e/test_spec_e2e.py")
+    assert run_hook(project, "guard_files.py", event).returncode == BLOCK
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "tests/e2e/conftest.py",  # через conftest можно незаметно изменить чужие тесты
+        "tests/e2e/helpers.py",
+        "tests/e2e/nested/test_x_e2e.py",
+        "tests/unit/test_new.py",
+    ],
+)
+def test_protect_tests_exception_is_only_for_e2e_test_files(project, path):
+    set_flag(project, "protect-tests")
+    assert run_hook(project, "guard_files.py", edit(project, path)).returncode == BLOCK
+
+
+def test_protect_tests_shell_edits_of_e2e_stay_blocked(project):
+    set_flag(project, "protect-tests")
+    event = bash("sed -i 's/1/2/' tests/e2e/test_spec_e2e.py")
+    assert run_hook(project, "guard_bash.py", event).returncode == BLOCK
+
+
 def test_guard_files_harness_unlock_by_human(project):
     set_flag(project, "harness-unlock")
     event = edit(project, ".claude/settings.json")
@@ -150,3 +188,54 @@ def test_stop_releases_after_max_retries(project):
     (project / ".claude" / ".state" / "stop-retries").write_text("3")
     result = run_hook(project, "stop_check.py", {"stop_hook_active": True})
     assert result.returncode == 0  # предохранитель от бесконечного цикла
+
+
+def test_stop_release_warns_human_that_checks_are_red(project):
+    """Хук отпускает агента не молча: человек должен увидеть, что проверки красные."""
+    (project / "app.py").write_text("x = 1\n")
+    (project / ".claude" / ".state" / "stop-retries").write_text("3")
+    result = run_hook(project, "stop_check.py", {"stop_hook_active": True})
+    assert result.returncode == 0
+    assert "make check" in json.loads(result.stdout)["systemMessage"]
+
+
+@pytest.fixture
+def red_project(project: Path) -> Path:
+    """Проект с незакоммиченным кодом, где `make check-fast` падает и оставляет след."""
+    (project / "app.py").write_text("x = 1\n")
+    (project / "Makefile").write_text("check-fast:\n\t@touch check-ran\n\t@exit 1\n")
+    return project
+
+
+def task(task_type: str) -> dict:
+    return {"id": "t1", "type": task_type, "status": "running", "description": "x"}
+
+
+@pytest.mark.parametrize("task_type", ["subagent", "teammate"])
+def test_stop_defers_check_while_agent_is_writing_code(red_project, task_type):
+    """Пока субагент работает, дерево недописано: проверка и попытки не тратятся."""
+    event = {"stop_hook_active": False, "background_tasks": [task(task_type)]}
+    assert run_hook(red_project, "stop_check.py", event).returncode == 0
+    assert not (red_project / "check-ran").exists()
+    assert not (red_project / ".claude" / ".state" / "stop-retries").exists()
+
+
+@pytest.mark.parametrize(
+    "event",
+    [
+        {"stop_hook_active": False},  # старая версия Claude Code: поля нет
+        {"stop_hook_active": False, "background_tasks": []},
+        {"stop_hook_active": False, "background_tasks": [task("shell")]},  # забытый dev-сервер
+    ],
+)
+def test_stop_runs_check_when_no_agent_is_working(red_project, event):
+    assert run_hook(red_project, "stop_check.py", event).returncode == BLOCK
+    assert (red_project / "check-ran").exists()
+    assert (red_project / ".claude" / ".state" / "stop-retries").read_text() == "1"
+
+
+def test_stop_last_attempt_tells_agent_to_report_red_checks(red_project):
+    (red_project / ".claude" / ".state" / "stop-retries").write_text("2")
+    result = run_hook(red_project, "stop_check.py", {"stop_hook_active": True})
+    assert result.returncode == BLOCK
+    assert "последняя попытка" in result.stderr

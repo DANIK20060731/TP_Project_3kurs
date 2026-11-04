@@ -19,8 +19,9 @@ disable-model-invocation: true
 Прочитай задачу, связанные разделы `docs/SPEC.md` и `docs/ARCHITECTURE.md`. Составь план: какие файлы, модели, сервисы, views, шаблоны появятся. Если есть «Открытые вопросы» — задай их человеку и дождись ответа.
 
 ## 2. Тесты (red)
-Вызови субагента **test-writer** с ID задачи. Проверь его отчёт: каждый критерий приёмки покрыт, тесты падают по правильной причине. Затем зафиксируй тесты:
+Вызови субагента **test-writer** с ID задачи. Проверь его отчёт: каждый критерий приёмки покрыт, тесты падают по правильной причине. Сразу после отчёта, не завершая ход, проверь стиль и зафиксируй тесты: пока они не закоммичены, Stop-хук считает задачу красной, а после коммита правки стиля в них будут заблокированы.
 ```bash
+uv run ruff format tests && uv run ruff check tests
 mkdir -p .claude/.state && touch .claude/.state/protect-tests
 git add tests && git commit -m "test($ARGUMENTS): спецификация в тестах (red)"
 ```
@@ -32,7 +33,7 @@ git add tests && git commit -m "test($ARGUMENTS): спецификация в т
 Параллельно вызови **code-reviewer** и **anonymity-auditor** (если задача трогает submissions, reviews, allocation, analytics, notifications или шаблоны). Исправь все BLOCKER/MAJOR/LEAK через implementer. Повтори ревью, пока не будет `APPROVE` и `ANONYMITY OK`.
 
 ## 5. E2E
-Если в задаче есть раздел «Пользовательский сценарий» — вызови **e2e-tester**. Затем `make e2e`.
+Если в задаче есть раздел «Пользовательский сценарий» — вызови **e2e-tester**. Затем `make e2e`. Режим protect-tests не снимай: новые файлы `tests/e2e/test_*.py` он разрешает, закоммиченные тесты остаются защищёнными.
 
 ## 6. Завершение
 - `rm -f .claude/.state/protect-tests`
