@@ -79,7 +79,9 @@ def test_student_enroll_errors_and_visibility(page: Page, live_server, console_e
     main = page.get_by_role("main")
     expect(main).not_to_contain_text(course.invite_code)
     expect(main).not_to_contain_text("classmate_x")
-    expect(main.get_by_role("link", name=course.title)).to_have_count(0)
+    # Студенту нельзя ссылку на управление курсом. Ссылка на страницу курса
+    # (/courses/<pk>/, T-003 AC-7) допустима — изначально проверка писалась, когда её не было.
+    expect(main.locator(f'a[href$="/courses/{course.pk}/manage/"]')).to_have_count(0)
 
     page.goto(live_server.url + "/courses/enroll/")
     page.get_by_label("Код приглашения").fill(course.invite_code)
