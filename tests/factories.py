@@ -22,3 +22,75 @@ class TeacherFactory(UserFactory):
 
     username = factory.Sequence(lambda n: f"teacher{n}")
     role = "teacher"
+
+
+# ---------------------------------------------------------------- courses (T-002)
+
+INVITE_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # без 0 O 1 I L
+
+
+def _invite_code(n: int) -> str:
+    """Детерминированный валидный код: n в системе счисления по алфавиту, 8 символов."""
+    base = len(INVITE_CODE_ALPHABET)
+    chars = []
+    for _ in range(8):
+        n, rest = divmod(n, base)
+        chars.append(INVITE_CODE_ALPHABET[rest])
+    return "".join(reversed(chars))
+
+
+def _build_course_factories() -> dict[str, type]:
+    """Фабрики курсов создаются при первом обращении.
+
+    factory_boy разрешает строку ``Meta.model`` в момент объявления класса, поэтому
+    фабрики курсов не объявлены на уровне модуля: импорт ``UserFactory`` не зависит
+    от наличия приложения ``courses``.
+    """
+
+    class CourseFactory(factory.django.DjangoModelFactory):
+        """Курс; владелец — преподаватель."""
+
+        class Meta:
+            model = "courses.Course"
+
+        owner = factory.SubFactory(TeacherFactory)
+        title = factory.Sequence(lambda n: f"Курс {n}")
+        description = "Описание курса"
+        invite_code = factory.Sequence(lambda n: _invite_code(n + 1000))
+
+    class GroupFactory(factory.django.DjangoModelFactory):
+        """Учебная группа курса, номер из 4 цифр."""
+
+        class Meta:
+            model = "courses.Group"
+
+        course = factory.SubFactory(CourseFactory)
+        number = factory.Sequence(lambda n: f"{(4000 + n) % 10000:04d}")
+
+    class EnrollmentFactory(factory.django.DjangoModelFactory):
+        """Запись студента на курс; если задана группа — курс берётся из неё."""
+
+        class Meta:
+            model = "courses.Enrollment"
+
+        group = None
+        course = factory.LazyAttribute(
+            lambda o: o.group.course if o.group is not None else CourseFactory()
+        )
+        student = factory.SubFactory(UserFactory)
+
+    return {
+        "CourseFactory": CourseFactory,
+        "GroupFactory": GroupFactory,
+        "EnrollmentFactory": EnrollmentFactory,
+    }
+
+
+_LAZY_FACTORIES = ("CourseFactory", "GroupFactory", "EnrollmentFactory")
+
+
+def __getattr__(name: str) -> type:
+    if name in _LAZY_FACTORIES:
+        globals().update(_build_course_factories())
+        return globals()[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
