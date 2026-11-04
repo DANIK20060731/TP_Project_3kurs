@@ -2,13 +2,13 @@
 {% block title %}Вход — Peer Review{% endblock %}
 {% block content %}
   <h1>Вход</h1>
-  <form method="post" action="{% url 'accounts:login' %}">
+  <form class="form-narrow" method="post" action="{% url 'accounts:login' %}">
     {% csrf_token %}
-    {{ form.as_p }}
+    {% include "_form_fields.html" with form=form %}
     {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
-    <button type="submit">Войти</button>
+    <button type="submit" class="btn btn-primary">Войти</button>
   </form>
   <p>
-    Нет учётной записи? <a href="{% url 'accounts:signup' %}">Регистрация</a>
+    Нет учётной записи? <a href="{% url 'accounts:signup' %}">Зарегистрируйтесь</a>
   </p>
 {% endblock %}

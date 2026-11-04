@@ -2,12 +2,12 @@
 {% block title %}Регистрация — Peer Review{% endblock %}
 {% block content %}
   <h1>Регистрация</h1>
-  <form method="post" action="{% url 'accounts:signup' %}">
+  <form class="form-narrow" method="post" action="{% url 'accounts:signup' %}">
     {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit">Зарегистрироваться</button>
+    {% include "_form_fields.html" with form=form %}
+    <button type="submit" class="btn btn-primary">Зарегистрироваться</button>
   </form>
   <p>
-    Уже зарегистрированы? <a href="{% url 'accounts:login' %}">Вход</a>
+    Уже зарегистрированы? <a href="{% url 'accounts:login' %}">Войдите</a>
   </p>
 {% endblock %}
