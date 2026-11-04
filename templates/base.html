@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+{% load static %}<!DOCTYPE html>
 <html lang="ru">
   <head>
     <meta charset="utf-8">
@@ -6,13 +6,53 @@
     <title>
       {% block title %}Peer Review{% endblock %}
     </title>
-    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+    <script src="{% static 'django_htmx/htmx-2.min.js' %}"></script>
   </head>
   <body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
-    <header>
-      <a href="{% url 'core:home' %}">Peer Review</a>
+    {% comment %}
+      Форма «url … as» не падает, если маршрута нет (страница 403/404 под тестовым urlconf).
+      Обратная сторона: опечатка в имени маршрута молча уберёт ссылку из шапки.
+      Поэтому каждую новую ссылку в шапке покрывайте тестом на точный href.
+      Переменные (home_url и др.) видны и в блоках дочерних шаблонов.
+      Шапка берёт пользователя из request.user, а не из user: ключ user в контексте
+      view не должен подменять шапку на другого пользователя (анонимность).
+    {% endcomment %}
+    {% url 'core:home' as home_url %}
+    {% url 'accounts:login' as login_url %}
+    {% url 'accounts:signup' as signup_url %}
+    {% url 'accounts:logout' as logout_url %}
+    <header class="site-header">
+      <div class="site-header__inner">
+        <a class="logo" href="{{ home_url|default:'/' }}">Peer Review</a>
+        <nav aria-label="Основная навигация">
+          {% if request.user.is_authenticated %}
+            <span class="user-name">Вы вошли как {{ request.user.username }}</span>
+            <span class="user-role">{{ request.user.get_role_display }}</span>
+            {% if logout_url %}
+              <form class="logout-form" method="post" action="{{ logout_url }}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-secondary">Выйти</button>
+              </form>
+            {% endif %}
+          {% else %}
+            {% if login_url %}<a href="{{ login_url }}">Вход</a>{% endif %}
+            {% if signup_url %}<a href="{{ signup_url }}">Регистрация</a>{% endif %}
+          {% endif %}
+        </nav>
+      </div>
     </header>
     <main>
+      {% if messages %}
+        <ul class="messages">
+          {% for message in messages %}
+            <li class="message{% if message.tags %} message-{{ message.tags }}{% endif %}"
+                {% if message.level_tag == "error" %}role="alert"{% else %}role="status"{% endif %}>
+              {{ message }}
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
       {% block content %}{% endblock %}
     </main>
   </body>

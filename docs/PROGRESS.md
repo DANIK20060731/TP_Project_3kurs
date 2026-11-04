@@ -35,6 +35,17 @@
 
 **Осталось:** если координатор завершит ход между отчётом test-writer и коммитом тестов, хук сработает на красных тестах. Поэтому `/task` требует коммитить их в том же ходе; маркер фазы red не вводили, чтобы не создавать способ обойти проверку.
 
+## 2026-11-04 · T-016 · участник 2 (Blokhin Daniil)
+- Общий шаблон `templates/base.html`: шапка с `nav` (гость — «Вход»/«Регистрация»; вошедший — «Вы вошли как …», роль, POST «Выйти»), данные только из `request.user`, блок `messages`.
+- `static/css/app.css`: свой CSS, mobile-first, переменные в `:root`; в начале файла — перечень классов для следующих задач (`.field`, `.form-narrow`, `.btn-primary/secondary`, `.table-wrap`, `.card`, `.message-*`, `.alert-*`, `.empty`).
+- `_form_fields.html` (ошибки в `role="alert"`), оформленные `403.html`/`404.html` на русском.
+- Хостинг: статика в prod через WhiteNoise (`CompressedManifestStaticFilesStorage`, новая зависимость согласована); htmx отдаётся локально из `django-htmx` (2.0.10) вместо unpkg.
+- `docs/ARCHITECTURE.md`: раздел «Анонимность в views и шаблонах» (messages по `public_code`, без hidden-полей с id, единый 404 для чужого/несуществующего объекта, тест на экран рецензента).
+- Ревью: APPROVE, ANONYMITY OK (7 MINOR исправлены). `make check` зелёный (123 теста, 94.35%), `make e2e` 12/12; ручная проверка в браузере 375/1280 px — OK.
+
+**Дальше:** T-002 (курсы) — зависимости T-001, T-016 выполнены. Отдельная задача «Деплой» через `/new-task`: площадка, gunicorn, Postgres, `CSRF_TRUSTED_ORIGINS`, обязательный `collectstatic` (без него manifest-хранилище даёт 500).
+**Открыто (minor):** отказ CSRF при `DEBUG=False` показывает стандартную страницу Django, а не наш `403.html` (нужен `403_csrf.html`); `GET /accounts/logout/` → пустой 405. Ссылки шапки собраны через `{% url … as var %}` и молча пропадают при опечатке — каждую новую ссылку покрывать тестом на точный href.
+
 ## 2026-11-04 · T-011 · участник 1 (syab2)
 - `apps/quality/detectors`: `normalize`, `TooShort`, `CopyPaste` (точный Jaccard по 5-граммам, обратный индекс), `UniformScores`, `TooFast`, `QualityConfig`, `run_all`. Только стандартная библиотека.
 - Eval-набор из 91 размеченной рецензии, включая трудные отрицательные примеры `hard-*`. Precision и recall 1.0 у трёх детекторов; `copy_paste`: precision 1.0, recall 0.90.
