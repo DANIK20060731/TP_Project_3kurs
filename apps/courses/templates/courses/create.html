@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Создать курс — Peer Review{% endblock %}
+{% block content %}
+  <h1>Создать курс</h1>
+  <form class="form-narrow" method="post" action="{% url 'courses:create' %}">
+    {% csrf_token %}
+    {% include "_form_fields.html" with form=form %}
+    <button type="submit" class="btn">Создать</button>
+  </form>
+{% endblock %}

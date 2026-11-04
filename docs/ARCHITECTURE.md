@@ -33,6 +33,8 @@ flowchart TD
 erDiagram
   User ||--o{ Enrollment : "записан"
   Course ||--o{ Enrollment : ""
+  Course ||--o{ Group : ""
+  Group ||--o{ Enrollment : "группа (необяз.)"
   Course ||--o{ Assignment : ""
   Assignment ||--|| Rubric : ""
   Rubric ||--o{ Criterion : ""

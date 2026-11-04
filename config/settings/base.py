@@ -22,6 +22,7 @@ INSTALLED_APPS = [
     # Приложения проекта (см. docs/ARCHITECTURE.md)
     "apps.core",
     "apps.accounts",
+    "apps.courses",
 ]
 
 MIDDLEWARE = [
