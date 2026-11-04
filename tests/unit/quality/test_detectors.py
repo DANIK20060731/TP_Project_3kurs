@@ -5,11 +5,13 @@ from __future__ import annotations
 import ast
 import dataclasses
 import itertools
+import json
+import os
 import random
 import re
 import subprocess
 import sys
-import time
+from fractions import Fraction
 from pathlib import Path
 
 import pytest
@@ -112,6 +114,10 @@ def flags_by_id(flags: list[Flag]) -> dict[str, Flag]:
 
 def canonical(flags: list[Flag]) -> list[Flag]:
     return sorted(flags, key=lambda f: (f.review_id, f.detector, f.reason, f.score))
+
+
+# Пороги вне 0 < T <= 1, включая значения, на которых наивные сравнения пропускают nan.
+INVALID_THRESHOLDS = [0, -0.1, 1.0000001, float("nan"), float("inf")]
 
 
 # ---------------------------------------------------------------- контракт типов
@@ -217,6 +223,53 @@ class TestNormalize:
         assert normalize(once) == once
 
 
+class TestNormalizeInvisibleCharacters:
+    @pytest.mark.parametrize(
+        "mark",
+        ["\u00ad", "\u200b", "\u200d", "\ufeff", "\u0301"],
+        ids=["soft-hyphen", "zero-width-space", "zero-width-joiner", "bom", "acute-accent"],
+    )
+    def test_invisible_character_does_not_break_word(self, mark: str) -> None:
+        """AC-1: мягкий перенос, нулевая ширина, BOM и ударение не разрывают слово."""
+        assert normalize(f"алго{mark}ритм") == "алгоритм"
+        assert normalize(f"{mark}быстрый алго{mark}ритм сорти{mark}ровки{mark}") == (
+            "быстрый алгоритм сортировки"
+        )
+
+    def test_accented_word_in_quotes(self) -> None:
+        """AC-1: «алго́ритм» с ударением U+0301 и в кавычках даёт алгоритм."""
+        assert normalize("«алго\u0301ритм»") == "алгоритм"
+
+    @pytest.mark.parametrize(
+        ("decomposed", "expected"),
+        [("и\u0306ка", "йка"), ("е\u0308лка", "елка"), ("Е\u0308\u0301ж", "еж")],
+    )
+    def test_decomposed_letters_survive_mark_removal(self, decomposed: str, expected: str) -> None:
+        """AC-1: удаление ударения не портит разложенные й и ё: й остаётся, ё становится е."""
+        assert normalize(decomposed) == expected
+
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            "алго\u00adритм",
+            "алго\u200bритм",
+            "алго\u200dритм",
+            "\ufeffалгоритм",
+            "«алго\u0301ритм»",
+            "\u00ad\u200b\u200d\ufeff\u0301",
+            "и\u0306 е\u0308 Е\u0308\u0301",
+            "и\u00ad\u0306",
+            "е\u200b\u0308лка",
+            "\u0130stanbul",
+            "\u1112\u200b\u1161",  # чамо становятся соседними только после удаления U+200B
+        ],
+    )
+    def test_is_idempotent_on_invisible_characters(self, raw: str) -> None:
+        """AC-1: повторная нормализация строк с невидимыми символами ничего не меняет."""
+        once = normalize(raw)
+        assert normalize(once) == once
+
+
 # ---------------------------------------------------------------- AC-2: TooShort
 
 
@@ -276,6 +329,25 @@ class TestTooShort:
         """AC-2: в наборе помечаются только короткие рецензии."""
         reviews = [make_review("rev-long", words(35)), make_review("rev-short", "норм")]
         assert [f.review_id for f in TooShort(min_words=30).detect(reviews)] == ["rev-short"]
+
+
+class TestTooShortStopWordList:
+    """Полный список стоп-слов намеренно не закреплён: контракт только про бесспорные слова."""
+
+    @pytest.mark.parametrize("stop_word", ["при", "бы", "или", "до", "же"])
+    def test_undisputed_stop_word_is_not_significant(self, stop_word: str) -> None:
+        """AC-2, решение 2: служебное слово не добирает 29 значимых слов до порога 30."""
+        comment = f"{words(29)} {stop_word}"
+        assert len(TooShort(min_words=30).detect([make_review(comment=comment)])) == 1
+
+    def test_undisputed_stop_words_together_and_in_upper_case(self) -> None:
+        """AC-2, решение 2: те же слова не считаются и вместе, и в верхнем регистре."""
+        comment = f"{words(29)} при бы или до же ПРИ БЫ ИЛИ ДО ЖЕ"
+        assert len(TooShort(min_words=30).detect([make_review(comment=comment)])) == 1
+
+    def test_significant_word_in_same_position_reaches_threshold(self) -> None:
+        """AC-2, решение 2: контроль: значимое слово на том же месте снимает флаг."""
+        assert TooShort(min_words=30).detect([make_review(comment=f"{words(29)} алгебра")]) == []
 
 
 # ---------------------------------------------------------------- AC-3: CopyPaste
@@ -424,6 +496,109 @@ class TestCopyPaste:
         assert "rev-b" not in flags["rev-c"].reason
 
 
+def exact_jaccard(first: str, second: str) -> Fraction:
+    """Точный Jaccard по 5-граммам уже нормализованных текстов, независимо от реализации."""
+
+    def grams(text: str) -> set[tuple[str, ...]]:
+        tokens = text.split()
+        return {tuple(tokens[i : i + 5]) for i in range(len(tokens) - 4)}
+
+    first_grams, second_grams = grams(first), grams(second)
+    return Fraction(len(first_grams & second_grams), len(first_grams | second_grams))
+
+
+def reason_percents(flag: Flag) -> list[str]:
+    """Все числа с процентами в reason."""
+    return re.findall(r"(\d+(?:[.,]\d+)?)\s*%", flag.reason)
+
+
+class TestCopyPasteReasonPercent:
+    @pytest.mark.parametrize("length", [204, 250, 400])
+    def test_percent_is_99_when_jaccard_rounds_to_100(self, length: int) -> None:
+        """AC-3: Jaccard ≥ 0.995, но не 1: округление дало бы 100, в reason показывается 99."""
+        tokens = [f"слово{i}" for i in range(length)]
+        first = " ".join(tokens)
+        second = f"{first} добавка"
+
+        jaccard = exact_jaccard(first, second)
+        assert jaccard == Fraction(length - 4, length - 3)  # от 200 различных 5-грамм
+        assert round(jaccard * 100) == 100  # без отдельного правила здесь было бы 100
+        assert jaccard < 1
+
+        flags = flags_by_id(
+            CopyPaste().detect([make_review("rev-a", first), make_review("rev-b", second)])
+        )
+        assert set(flags) == {"rev-a", "rev-b"}
+        for flag in flags.values():
+            assert flag.score == pytest.approx(float(jaccard))
+            assert flag.score < 1.0
+            assert reason_percents(flag) == ["99"], flag.reason
+
+    def test_percent_is_100_when_five_grams_match_completely(self) -> None:
+        """AC-3: при полном совпадении текстов в reason показывается 100."""
+        comment = " ".join(f"слово{i}" for i in range(250))
+        flags = flags_by_id(
+            CopyPaste().detect([make_review("rev-a", comment), make_review("rev-b", comment)])
+        )
+        assert set(flags) == {"rev-a", "rev-b"}
+        for flag in flags.values():
+            assert flag.score == 1.0
+            assert reason_percents(flag) == ["100"], flag.reason
+
+    def test_percent_is_100_when_only_sets_of_five_grams_match(self) -> None:
+        """AC-3: 100 определяется множествами 5-грамм: тексты разной длины с равными множествами."""
+        cycle = NOUNS[:5]
+        first = " ".join(cycle + cycle)
+        second = " ".join(cycle + cycle[:4])
+        assert first != second
+        assert exact_jaccard(first, second) == 1
+
+        flags = flags_by_id(
+            CopyPaste().detect([make_review("rev-a", first), make_review("rev-b", second)])
+        )
+        assert set(flags) == {"rev-a", "rev-b"}
+        for flag in flags.values():
+            assert reason_percents(flag) == ["100"], flag.reason
+
+
+class TestThresholdValidation:
+    @pytest.mark.parametrize("threshold", INVALID_THRESHOLDS, ids=repr)
+    def test_copy_paste_rejects_threshold_out_of_range(self, threshold: float) -> None:
+        """Решение 6: порог CopyPaste вне 0 < T <= 1, включая nan и inf, даёт ValueError."""
+        with pytest.raises(ValueError, match=r"\S"):
+            CopyPaste(threshold=threshold)
+
+    @pytest.mark.parametrize("threshold", INVALID_THRESHOLDS, ids=repr)
+    def test_config_rejects_threshold_out_of_range(self, threshold: float) -> None:
+        """Решение 6: порог в QualityConfig вне 0 < T <= 1, включая nan и inf, даёт ValueError."""
+        with pytest.raises(ValueError, match=r"\S"):
+            QualityConfig(copy_threshold=threshold)
+
+    def test_threshold_one_is_valid_and_means_full_match(self) -> None:
+        """Решение 6: 1.0 допустим: помечается только полное совпадение множеств 5-грамм."""
+        reviews = [
+            make_review("rev-a", words(20)),
+            make_review("rev-b", words(20)),
+            make_review("rev-c", words(21)),
+        ]
+        expected = {"rev-a", "rev-b"}
+        assert {f.review_id for f in CopyPaste(threshold=1.0).detect(reviews)} == expected
+
+        config = QualityConfig(enabled=frozenset({"copy_paste"}), copy_threshold=1.0)
+        assert config.copy_threshold == 1.0
+        assert {f.review_id for f in run_all(reviews, config)} == expected
+
+    @pytest.mark.parametrize(
+        "enabled",
+        [{"unknown"}, {"too_short", "unknown"}, {"copypaste"}, {""}],
+        ids=["unknown", "mixed", "typo", "empty-name"],
+    )
+    def test_config_rejects_unknown_detector_name(self, enabled: set[str]) -> None:
+        """Решение 6: неизвестное имя в enabled даёт ValueError, а не молчаливое отключение."""
+        with pytest.raises(ValueError, match=r"\S"):
+            QualityConfig(enabled=frozenset(enabled))
+
+
 # ---------------------------------------------------------------- AC-4: UniformScores
 
 
@@ -469,6 +644,16 @@ class TestTooFast:
         review = make_review(seconds_spent=100)
         assert TooFast(min_seconds=100).detect([review]) == []
         assert len(TooFast(min_seconds=101).detect([review])) == 1
+
+
+class TestTooFastNegativeTime:
+    @pytest.mark.parametrize("seconds", [-1, -5, -3600])
+    def test_negative_time_is_flagged_without_negative_number_in_reason(self, seconds: int) -> None:
+        """AC-5, решение 5: отрицательное время — флаг, в reason нет отрицательного числа."""
+        flags = TooFast(min_seconds=60).detect([make_review("rev-1", seconds_spent=seconds)])
+        assert [(f.review_id, f.detector) for f in flags] == [("rev-1", "too_fast")]
+        assert flags[0].reason.strip()
+        assert not re.search(r"[-−–—]\s*\d", flags[0].reason), flags[0].reason
 
 
 # ---------------------------------------------------------------- общие требования к флагам
@@ -525,6 +710,46 @@ class TestFlagQuality:
         flags = TooShort().detect(reviews) + TooFast().detect(reviews)
         assert {f.review_id for f in flags} == {"rev-empty", "rev-skew"}
         assert all(0.0 <= flag.score <= 1.0 for flag in flags)
+
+
+class TestRuleScoreIsExactlyOne:
+    """Решение 5: у детекторов-правил score равен 1.0 независимо от масштаба нарушения."""
+
+    @pytest.mark.parametrize("comment", ["", "норм", words(29)], ids=["empty", "one", "29"])
+    def test_too_short(self, comment: str) -> None:
+        """Решение 5: TooShort даёт ровно 1.0 при любой длине комментария ниже порога."""
+        flags = TooShort(min_words=30).detect([make_review(comment=comment)])
+        assert [flag.score for flag in flags] == [1.0]
+
+    @pytest.mark.parametrize("seconds", [-5, 0, 1, 59])
+    def test_too_fast(self, seconds: int) -> None:
+        """Решение 5: TooFast даёт ровно 1.0 при любом времени ниже порога."""
+        flags = TooFast(min_seconds=60).detect([make_review(seconds_spent=seconds)])
+        assert [flag.score for flag in flags] == [1.0]
+
+    @pytest.mark.parametrize("scores", [(0, 0, 0), (5, 5, 5), (3, 3, 3, 3, 3)], ids=str)
+    def test_uniform_scores(self, scores: tuple[int, ...]) -> None:
+        """Решение 5: UniformScores даёт ровно 1.0 при любой оценке и любом числе критериев."""
+        flags = UniformScores().detect([make_review(scores=scores)])
+        assert [flag.score for flag in flags] == [1.0]
+
+
+class TestReprDoesNotRevealReviewer:
+    def test_review_text_repr_hides_reviewer_and_comment(self) -> None:
+        """Инвариант анонимности: repr(ReviewText) не содержит reviewer_id и comment."""
+        review = make_review("rev-visible", "маркерныйтекст рецензии", reviewer_id=MARKER)
+        assert MARKER not in repr(review)
+        assert "маркерныйтекст" not in repr(review)
+        assert "rev-visible" in repr(review)
+
+    @pytest.mark.parametrize("detector", ALL_DETECTORS, ids=lambda d: d.name)
+    def test_flag_repr_hides_reviewer(self, detector: Detector) -> None:
+        """Инвариант анонимности: repr(Flag) реального срабатывания не содержит reviewer_id."""
+        flags = detector.detect(triggering_reviews())
+        assert flags
+        for flag in flags:
+            assert MARKER not in repr(flag)
+            assert OTHER_MARKER not in repr(flag)
 
 
 # ---------------------------------------------------------------- AC-6: run_all
@@ -630,29 +855,54 @@ class TestRunAll:
 # ---------------------------------------------------------------- AC-8: скорость и чистота
 
 
-def _perf_vocabulary() -> list[str]:
-    return [f"слово{i}" for i in range(2000)]
+COPY_PASTE_TIMING_SCRIPT = """
+import json
+import random
+import time
 
+from apps.quality.detectors import CopyPaste, ReviewText
 
-def _independent_reviews() -> tuple[list[ReviewText], set[str]]:
-    """300 рецензий по 150 слов, среди которых есть две заранее известные копии."""
-    rng = random.Random(11)
-    vocabulary = _perf_vocabulary()
-    comments = [" ".join(rng.choices(vocabulary, k=150)) for _ in range(300)]
-    comments[17] = comments[250]
-    reviews = [make_review(f"rev-{i:03d}", comment) for i, comment in enumerate(comments)]
-    return reviews, {"rev-017", "rev-250"}
+rng = random.Random(11)
+vocabulary = [f"слово{i}" for i in range(2000)]
+comments = [" ".join(rng.choices(vocabulary, k=150)) for _ in range(300)]
+comments[17] = comments[250]
+reviews = [
+    ReviewText(
+        review_id=f"rev-{i:03d}",
+        reviewer_id=f"reviewer-{i}",
+        comment=comment,
+        scores=(1, 2, 3),
+        seconds_spent=None,
+    )
+    for i, comment in enumerate(comments)
+]
+started = time.perf_counter()
+flags = CopyPaste(threshold=0.8).detect(reviews)
+elapsed = time.perf_counter() - started
+print(json.dumps({"elapsed": elapsed, "flagged": sorted(f.review_id for f in flags)}))
+"""
 
 
 @pytest.mark.slow
 def test_copy_paste_is_fast_on_independent_reviews() -> None:
-    """AC-8: 300 рецензий по 150 слов обрабатываются меньше 2 с без потери находок."""
-    reviews, planted = _independent_reviews()
-    started = time.perf_counter()
-    flags = CopyPaste(threshold=0.8).detect(reviews)
-    elapsed = time.perf_counter() - started
-    assert elapsed < 2.0, f"CopyPaste занял {elapsed:.2f} с"
-    assert {flag.review_id for flag in flags} == planted
+    """AC-8: 300 рецензий по 150 слов обрабатываются меньше 2 с без потери находок.
+
+    Замер идёт в отдельном процессе: в `make check` тесты выполняются параллельно
+    и с покрытием, а трассировка замедляет код в разы и делает результат случайным.
+    """
+    env = {key: value for key, value in os.environ.items() if not key.startswith("COV")}
+    completed = subprocess.run(
+        [sys.executable, "-c", COPY_PASTE_TIMING_SCRIPT],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    result = json.loads(completed.stdout)
+
+    assert result["elapsed"] < 2.0, f"CopyPaste занял {result['elapsed']:.2f} с"
+    assert result["flagged"] == ["rev-017", "rev-250"]
 
 
 def _pure_python_files() -> list[Path]:
