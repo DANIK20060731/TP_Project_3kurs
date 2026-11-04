@@ -141,11 +141,12 @@ def test_different_seeds_sometimes_differ(
     n, k = n_k
     case = build_case(n, k, base_seed, layout_seed)
 
-    results = [
-        allocate(case.works, case.reviewers, k=k, seed=base_seed + offset) for offset in range(20)
-    ]
+    baseline = run(case)
 
-    assert any(result != results[0] for result in results[1:])
+    assert any(
+        allocate(case.works, case.reviewers, k=k, seed=base_seed + offset) != baseline
+        for offset in range(1, 20)
+    )
 
 
 @PROPERTY_SETTINGS

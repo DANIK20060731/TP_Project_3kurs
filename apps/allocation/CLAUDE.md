@@ -13,6 +13,7 @@ def allocate(
     works: Sequence[Work],
     reviewers: Sequence[str],        # обычно = все авторы
     k: int,                          # рецензий на работу
+    *,
     forbidden: Set[tuple[str, str]] = frozenset(),  # (reviewer, work_id), напр. «уже рецензировал»
     seed: int = 0,
 ) -> Allocation                      # dict[work_id, list[reviewer]]

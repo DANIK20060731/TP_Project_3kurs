@@ -9,7 +9,9 @@ import subprocess
 import sys
 import time
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -18,6 +20,8 @@ from apps.allocation import InfeasibleAllocation, Work, allocate
 REPO_ROOT = Path(__file__).resolve().parents[3]
 ALLOCATION_DIR = REPO_ROOT / "apps" / "allocation"
 CYRILLIC = re.compile(r"[А-Яа-яЁё]")
+AUTHOR_STEM = "ivanov"
+FOREIGN_STEM = "petrov"
 
 HASH_SEED_SCRIPT = """
 import json
@@ -174,6 +178,50 @@ def test_different_seeds_differ_on_minimal_case() -> None:
     assert any(result != results[0] for result in results[1:])
 
 
+def cycle_lengths(result: dict[str, list[str]], works: Sequence[Work]) -> tuple[int, ...]:
+    """Возвращает длины циклов графа «рецензент → автор» при k=1 в порядке возрастания."""
+    author_of = {work.id: next(iter(work.authors)) for work in works}
+    next_author = {result[work_id][0]: author for work_id, author in author_of.items()}
+
+    lengths: list[int] = []
+    unvisited = set(next_author)
+    while unvisited:
+        current = unvisited.pop()
+        length = 1
+        following = next_author[current]
+        while following != current:
+            unvisited.remove(following)
+            following = next_author[following]
+            length += 1
+        lengths.append(length)
+    return tuple(sorted(lengths))
+
+
+def test_shifts_are_chosen_from_whole_range_by_seed() -> None:
+    """AC-5: при n=6, k=1 сдвиг выбирается из {1, 2}, а не всегда равен 1.
+
+    Сдвиг 1 даёт один цикл длины 6, сдвиг 2 даёт два цикла длины 3. Перестановка авторов
+    форму циклов не меняет, поэтому видно именно множество сдвигов.
+    """
+    works, reviewers = make_works(6), make_reviewers(6)
+
+    observed = {
+        cycle_lengths(allocate(works, reviewers, k=1, seed=seed), works) for seed in range(100)
+    }
+
+    assert observed == {(6,), (3, 3)}
+
+
+def test_seed_and_forbidden_are_keyword_only() -> None:
+    """AC-1: seed нельзя передать позиционно, хотя первые три аргумента позиционные."""
+    works, reviewers = make_works(7), make_reviewers(7)
+    positional: tuple[Any, ...] = (works, reviewers, 1, 5)
+
+    assert allocate(works, reviewers, 1) == allocate(works, reviewers, k=1)
+    with pytest.raises(TypeError):
+        allocate(*positional)
+
+
 # ---------------------------------------------------------------- воспроизводимость
 
 
@@ -296,6 +344,168 @@ def test_input_outside_circulant_scope_is_rejected(works: list[Work], reviewers:
 def test_non_empty_forbidden_is_rejected(forbidden: frozenset[tuple[str, str]]) -> None:
     """Решение координатора 2: запреты T-006 не поддерживает и не игнорирует молча."""
     assert_infeasible(make_works(7), make_reviewers(7), k=2, forbidden=forbidden)
+
+
+def numbers_in(text: str) -> set[str]:
+    """Возвращает числа из текста как отдельные токены: `3` не найдётся внутри `13`."""
+    return set(re.findall(r"\d+", text))
+
+
+def infeasible_reason(n: int, k: int) -> str:
+    with pytest.raises(InfeasibleAllocation) as exc_info:
+        allocate(make_works(n), make_reviewers(n), k=k, seed=0)
+    return exc_info.value.reason
+
+
+def test_reason_for_too_few_works_names_minimum_and_submitted() -> None:
+    """AC-6: при n=2, k=1 причина называет минимум 3 работы и число сданных 2."""
+    assert {"2", "3"} <= numbers_in(infeasible_reason(2, 1))
+
+
+def test_reason_for_k_above_limit_names_limit_and_requested() -> None:
+    """AC-6: при n=4, k=2 причина называет предел 1 и указанное значение 2."""
+    assert {"1", "2"} <= numbers_in(infeasible_reason(4, 2))
+
+
+def marked_works(n: int) -> list[Work]:
+    """Работы с маркерными именами авторов: нейтральные id, узнаваемые авторы."""
+    return [Work(id=f"w{i}", authors=frozenset({f"{AUTHOR_STEM}{i}"})) for i in range(n)]
+
+
+def marked_reviewers(n: int) -> list[str]:
+    return [f"{AUTHOR_STEM}{i}" for i in range(n)]
+
+
+@dataclass(frozen=True)
+class ErrorBranch:
+    """Вход, ведущий в одну ветку ошибки, и выражение, которое её отличает от других."""
+
+    works: list[Work]
+    reviewers: list[str]
+    k: Any
+    pattern: str
+    forbidden: frozenset[tuple[str, str]] = frozenset()
+    seed: Any = 0
+
+
+ERROR_BRANCHES = {
+    "k-wrong-type": ErrorBranch(marked_works(7), marked_reviewers(7), 1.5, r"цел"),
+    "seed-wrong-type": ErrorBranch(marked_works(7), marked_reviewers(7), 1, r"seed.*цел", seed="1"),
+    "seed-negative": ErrorBranch(
+        marked_works(7), marked_reviewers(7), 1, r"seed.*отрицат", seed=-1
+    ),
+    "forbidden": ErrorBranch(
+        marked_works(7),
+        marked_reviewers(7),
+        1,
+        r"запрет",
+        forbidden=frozenset({(f"{AUTHOR_STEM}0", "w1"), (f"{FOREIGN_STEM}0", "w2")}),
+    ),
+    "duplicate-work-id": ErrorBranch(
+        [*marked_works(5), Work(id="w0", authors=frozenset({f"{AUTHOR_STEM}5"}))],
+        marked_reviewers(6),
+        1,
+        r"работ.*повтор",
+    ),
+    "without-authors": ErrorBranch(
+        [*marked_works(5), Work(id="w5", authors=frozenset())],
+        marked_reviewers(5),
+        1,
+        r"без\s+автор|нет\s+автор",
+    ),
+    "several-authors": ErrorBranch(
+        [
+            Work(id="w0", authors=frozenset({f"{AUTHOR_STEM}0", f"{AUTHOR_STEM}5"})),
+            *marked_works(5)[1:],
+        ],
+        marked_reviewers(6),
+        1,
+        r"нескольк\w*\s+автор",
+    ),
+    "author-with-two-works": ErrorBranch(
+        [*marked_works(5), Work(id="w5", authors=frozenset({f"{AUTHOR_STEM}0"}))],
+        marked_reviewers(5),
+        1,
+        r"один\s+автор",
+    ),
+    "duplicate-reviewer": ErrorBranch(
+        marked_works(5), [*marked_reviewers(5), f"{AUTHOR_STEM}0"], 1, r"рецензент.*повтор"
+    ),
+    "extra-reviewer": ErrorBranch(
+        marked_works(5), [*marked_reviewers(5), f"{FOREIGN_STEM}0"], 1, r"совпад"
+    ),
+    "missing-reviewer": ErrorBranch(marked_works(5), marked_reviewers(4), 1, r"совпад"),
+    "too-few-works": ErrorBranch(marked_works(2), marked_reviewers(2), 1, r"минимум"),
+    "k-below-one": ErrorBranch(marked_works(5), marked_reviewers(5), 0, r"не\s+меньше"),
+    "k-above-limit": ErrorBranch(marked_works(4), marked_reviewers(4), 2, r"взаимн"),
+}
+
+
+def branch_error(branch: ErrorBranch) -> InfeasibleAllocation:
+    with pytest.raises(InfeasibleAllocation) as exc_info:
+        allocate(
+            branch.works,
+            branch.reviewers,
+            k=branch.k,
+            forbidden=branch.forbidden,
+            seed=branch.seed,
+        )
+    return exc_info.value
+
+
+@pytest.mark.parametrize("branch", ERROR_BRANCHES.values(), ids=ERROR_BRANCHES.keys())
+def test_reason_explains_its_branch(branch: ErrorBranch) -> None:
+    """AC-6: причина объясняет именно эту ошибку, ветку нельзя удалить незаметно.
+
+    Без своей ветки вход с несколькими авторами или без авторов дошёл бы до проверки
+    «один автор у нескольких работ», поэтому выражения эту причину не принимают.
+    """
+    assert re.search(branch.pattern, branch_error(branch).reason, re.IGNORECASE | re.DOTALL)
+
+
+@pytest.mark.parametrize("branch", ERROR_BRANCHES.values(), ids=ERROR_BRANCHES.keys())
+def test_error_does_not_reveal_names(branch: ErrorBranch) -> None:
+    """Инвариант анонимности: ни reason, ни str(exc) не содержат имён авторов и рецензентов.
+
+    Проверяется основа имени, поэтому обрезанное имя тоже будет найдено.
+    """
+    error = branch_error(branch)
+
+    for text in (error.reason, str(error)):
+        assert AUTHOR_STEM not in text
+        assert FOREIGN_STEM not in text
+
+
+def test_work_repr_does_not_reveal_authors() -> None:
+    """Инвариант анонимности: repr и str работы не содержат авторов, id остаётся."""
+    work = Work(id="w0", authors=frozenset({f"{AUTHOR_STEM}0", f"{AUTHOR_STEM}1"}))
+
+    for text in (repr(work), str(work)):
+        assert AUTHOR_STEM not in text
+        assert "w0" in text
+
+
+def test_works_are_compared_by_authors_too() -> None:
+    """Скрытие авторов в repr не исключает их из сравнения работ."""
+    work = Work(id="w0", authors=frozenset({"a"}))
+
+    assert work == Work(id="w0", authors=frozenset({"a"}))
+    assert work != Work(id="w0", authors=frozenset({"b"}))
+
+
+@pytest.mark.parametrize("k", [1.5, "1", None, True], ids=repr)
+def test_k_of_wrong_type_is_rejected(k: Any) -> None:
+    """AC-6: k не типа int (в том числе bool) даёт InfeasibleAllocation с причиной на русском."""
+    assert_infeasible(make_works(7), make_reviewers(7), k)
+
+
+@pytest.mark.parametrize("seed", [None, 1.5, "1", True, -1], ids=repr)
+def test_invalid_seed_is_rejected(seed: Any) -> None:
+    """AC-6: seed не типа int (в том числе bool) или отрицательный даёт InfeasibleAllocation."""
+    with pytest.raises(InfeasibleAllocation) as exc_info:
+        allocate(make_works(7), make_reviewers(7), k=1, seed=seed)
+
+    assert CYRILLIC.search(exc_info.value.reason)
 
 
 # ---------------------------------------------------------------- побочные эффекты
