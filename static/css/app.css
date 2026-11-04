@@ -14,6 +14,7 @@
  *   Сообщение    ul.messages > li.message.message-{info|success|warning|error};
  *                .alert.alert-{info|success|warning|error} — сообщение внутри страницы
  *   Пустой список .empty — «Пока ничего нет»
+ *   Скрытый текст .visually-hidden — виден только скринридерам (доступное имя поля)
  */
 
 :root {
@@ -364,4 +365,18 @@ th {
     flex-wrap: nowrap;
     padding: var(--space-3) var(--space-6);
   }
+}
+
+/* Текст для скринридеров: визуально скрыт, но остаётся в доступном имени. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }

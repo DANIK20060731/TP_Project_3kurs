@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Действие недоступно — Peer Review{% endblock %}
+{% block content %}
+  <h1>Действие недоступно</h1>
+  <p>Эта страница открывается только из формы. Вернитесь на предыдущую страницу и отправьте форму ещё раз.</p>
+  <p>
+    {% if back_url %}
+      <a class="btn btn-secondary" href="{{ back_url }}">Вернуться к курсу</a>
+    {% else %}
+      <a class="btn btn-secondary" href="{{ home_url|default:'/' }}">На главную</a>
+    {% endif %}
+  </p>
+{% endblock %}

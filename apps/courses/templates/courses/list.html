@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Мои курсы — Peer Review{% endblock %}
+{% block content %}
+  <h1>Мои курсы</h1>
+  {% if request.user.is_teacher %}
+    {% if courses %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Курс</th>
+              <th scope="col">Код приглашения</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for course in courses %}
+              <tr>
+                <td>
+                  <a href="{% url 'courses:manage' course.pk %}">{{ course.title }}</a>
+                </td>
+                <td>
+                  <code>{{ course.invite_code }}</code>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="empty">У вас пока нет курсов.</p>
+    {% endif %}
+    <p>
+      <a class="btn" href="{% url 'courses:create' %}">Создать курс</a>
+    </p>
+  {% else %}
+    {% if enrollments %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Курс</th>
+              <th scope="col">Группа</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for enrollment in enrollments %}
+              <tr>
+                <td>{{ enrollment.course.title }}</td>
+                <td>
+                  {% if enrollment.group %}
+                    {{ enrollment.group.number }}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="empty">Вы пока не записаны ни на один курс.</p>
+    {% endif %}
+    <p>
+      <a class="btn" href="{% url 'courses:enroll' %}">Записаться на курс</a>
+    </p>
+  {% endif %}
+{% endblock %}

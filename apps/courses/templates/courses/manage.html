@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}{{ course.title }} — Peer Review{% endblock %}
+{% block content %}
+  <h1>{{ course.title }}</h1>
+  {% if course.description %}<p>{{ course.description|linebreaksbr }}</p>{% endif %}
+  <div class="card">
+    <p>
+      Код приглашения: <strong><code>{{ course.invite_code }}</code></strong>
+    </p>
+    <p class="help">Сообщите код студентам: они вводят его на странице «Записаться».</p>
+  </div>
+  <div class="card">
+    <form class="form-narrow"
+          method="post"
+          action="{% url 'courses:group_add' course.pk %}">
+      {% csrf_token %}
+      {% include "_form_fields.html" with form=group_form %}
+      <button type="submit" class="btn">Добавить группу</button>
+    </form>
+  </div>
+  {% for section in roster.sections %}
+    <section class="card">
+      <h2>
+        {% if section.group %}
+          Группа {{ section.group.number }}
+        {% else %}
+          Без группы
+        {% endif %}
+      </h2>
+      {% if section.enrollments %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Студент</th>
+                {% if roster.groups %}<th scope="col">Перевод</th>{% endif %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for enrollment in section.enrollments %}
+                <tr>
+                  <td>{{ enrollment.student.username }}</td>
+                  {% if roster.groups %}
+                    <td>
+                      <form method="post"
+                            action="{% url 'courses:move_student' course.pk enrollment.pk %}">
+                        {% csrf_token %}
+                        {% if move_form and move_enrollment_pk == enrollment.pk and move_form.errors %}
+                          <div class="field-errors" role="alert">
+                            {{ move_form.non_field_errors }}
+                            {{ move_form.group.errors }}
+                          </div>
+                        {% endif %}
+                        {% comment %}
+                          Select собран вручную, а не через MoveStudentForm: уникальный id на строку
+                          и без отдельного запроса групп на каждую строку. Он дублирует поле
+                          MoveStudentForm.group и должен совпадать с ним по name («group») и
+                          вариантам (pk групп этого курса, roster.groups). Сервер всё равно
+                          валидирует выбор через MoveStudentForm.
+                        {% endcomment %}
+                        <label for="move-{{ enrollment.pk }}">
+                          Перевести в группу <span class="visually-hidden">студента {{ enrollment.student.username }}</span>
+                        </label>
+                        <select id="move-{{ enrollment.pk }}" name="group" required>
+                          {% if not enrollment.group_id %}<option value="">— выберите —</option>{% endif %}
+                          {% for group in roster.groups %}
+                            <option value="{{ group.pk }}"
+                                    {% if group.pk == enrollment.group_id %}selected{% endif %}>
+                              {{ group.number }}
+                            </option>
+                          {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-secondary">Перевести</button>
+                      </form>
+                    </td>
+                  {% endif %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="empty">Студентов нет.</p>
+      {% endif %}
+    </section>
+  {% endfor %}
+{% endblock %}

@@ -22,11 +22,20 @@
     {% url 'accounts:login' as login_url %}
     {% url 'accounts:signup' as signup_url %}
     {% url 'accounts:logout' as logout_url %}
+    {% url 'courses:list' as courses_list_url %}
+    {% url 'courses:create' as course_create_url %}
+    {% url 'courses:enroll' as course_enroll_url %}
     <header class="site-header">
       <div class="site-header__inner">
         <a class="logo" href="{{ home_url|default:'/' }}">Peer Review</a>
         <nav aria-label="Основная навигация">
           {% if request.user.is_authenticated %}
+            {% if courses_list_url %}<a href="{{ courses_list_url }}">Мои курсы</a>{% endif %}
+            {% if request.user.is_teacher %}
+              {% if course_create_url %}<a href="{{ course_create_url }}">Создать курс</a>{% endif %}
+            {% elif course_enroll_url %}
+              <a href="{{ course_enroll_url }}">Записаться</a>
+            {% endif %}
             <span class="user-name">Вы вошли как {{ request.user.username }}</span>
             <span class="user-role">{{ request.user.get_role_display }}</span>
             {% if logout_url %}
