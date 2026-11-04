@@ -211,6 +211,62 @@ textarea:focus {
   border-color: var(--color-error);
 }
 
+/* Группа чекбоксов (fieldset из _form_fields.html): варианты в строку. */
+.field-group {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+.field-group legend {
+  margin-bottom: var(--space-1);
+  padding: 0;
+  font-weight: 600;
+}
+
+.field-group > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
+.field-group label {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  margin: 0;
+  font-weight: 400;
+}
+
+/* Пары «название — значение» на странице задания. */
+/* Список «подпись — значение»: на телефоне в одну колонку, с 40rem — в две
+   (две колонки max-content + длинное слово не помещаются в 375 px). */
+.details {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0 var(--space-4);
+  margin: 0;
+}
+
+.details dt {
+  font-weight: 600;
+}
+
+.details dd {
+  margin: 0 0 var(--space-2);
+}
+
+@media (min-width: 40rem) {
+  .details {
+    grid-template-columns: max-content 1fr;
+    gap: var(--space-2) var(--space-4);
+  }
+
+  .details dd {
+    margin-bottom: 0;
+  }
+}
+
 .help {
   margin-top: var(--space-1);
   font-size: 0.875rem;

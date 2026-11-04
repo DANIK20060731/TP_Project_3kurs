@@ -4,10 +4,14 @@
 повторный запуск не создаёт дубликатов.
 """
 
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.utils import timezone
 
+from apps.assignments.models import Assignment
 from apps.courses.models import Course, Enrollment, Group
 
 # Тестовые учётки (только для локальной разработки и e2e).
@@ -27,6 +31,26 @@ DEMO_GROUPS: dict[str, list[str]] = {
     "4231": [f"student{i:02d}" for i in range(1, 11)],
     "4232": [f"student{i:02d}" for i in range(11, 21)],
 }
+
+# Задания демо-курса: (название, описание, форматы, тип, сдвиг дедлайна сдачи в днях от
+# момента первого запуска). Первое — в фазе «Сдача работ», второе — «Распределение».
+DEMO_ASSIGNMENTS: list[tuple[str, str, list[str], str, int]] = [
+    (
+        "Лабораторная 1: эхо-сервер",
+        "Реализуйте TCP эхо-сервер и опишите протокол.",
+        ["pdf", "zip", "py"],
+        Assignment.Kind.INDIVIDUAL,
+        7,
+    ),
+    (
+        "Проект: требования к системе",
+        "Командный документ с требованиями к выбранной системе.",
+        ["pdf", "docx", "odt"],
+        Assignment.Kind.TEAM,
+        -1,
+    ),
+]
+DEMO_REVIEW_WINDOW_DAYS = 7
 
 
 class Command(BaseCommand):
@@ -51,9 +75,10 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(f"Пользователей создано: {created} (пароль: {DEMO_PASSWORD})")
         )
-        self._seed_courses()
+        course = self._seed_courses()
+        self._seed_assignments(course)
 
-    def _seed_courses(self) -> None:
+    def _seed_courses(self) -> Course:
         """Курс teacher с группами 4231, 4232 и записанными студентами (идемпотентно)."""
         user_model = get_user_model()
         teacher = user_model.objects.get(username="teacher")
@@ -78,3 +103,32 @@ class Command(BaseCommand):
                 f"Курс «{course.title}» (код {course.invite_code}), новых записей: {enrolled}"
             )
         )
+        return course
+
+    def _seed_assignments(self, course: Course) -> None:
+        """Задания демо-курса (идемпотентно, по названию; существующие не меняются).
+
+        Создаются напрямую, а не через сервис: второе задание намеренно с прошедшим
+        дедлайном сдачи, а сервис принимает только будущий.
+        """
+        now = timezone.now().replace(second=0, microsecond=0)
+        created = 0
+        for title, description, formats, kind, offset_days in DEMO_ASSIGNMENTS:
+            if Assignment.objects.filter(course=course, title=title).exists():
+                continue
+            submission = now + timedelta(days=offset_days)
+            assignment = Assignment(
+                course=course,
+                title=title,
+                description=description,
+                allowed_formats=formats,
+                max_file_size_mb=20,
+                kind=kind,
+                reviews_per_submission=3,
+                submission_deadline=submission,
+                review_deadline=submission + timedelta(days=DEMO_REVIEW_WINDOW_DAYS),
+            )
+            assignment.full_clean()
+            assignment.save()
+            created += 1
+        self.stdout.write(self.style.SUCCESS(f"Заданий создано: {created}"))

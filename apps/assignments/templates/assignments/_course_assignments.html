@@ -1,0 +1,38 @@
+{% comment %}
+  Список заданий курса: название (ссылка на страницу задания), дедлайны по TIME_ZONE и фаза.
+  Использование: {% include "assignments/_course_assignments.html" with assignments=rows %},
+  где rows — список apps.courses.services.AssignmentRow (course_assignment_rows).
+  В строках нет данных о пользователях — шаблон годится и для экрана студента.
+{% endcomment %}
+{% if assignments %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Задание</th>
+          <th scope="col">Дедлайн сдачи</th>
+          <th scope="col">Дедлайн рецензий</th>
+          <th scope="col">Фаза</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for assignment in assignments %}
+          <tr>
+            <td>
+              <a href="{% url 'assignments:detail' assignment.pk %}">{{ assignment.title }}</a>
+            </td>
+            <td>
+              <time datetime="{{ assignment.submission_deadline|date:'c' }}">{{ assignment.submission_deadline|date:"d.m.Y H:i" }}</time>
+            </td>
+            <td>
+              <time datetime="{{ assignment.review_deadline|date:'c' }}">{{ assignment.review_deadline|date:"d.m.Y H:i" }}</time>
+            </td>
+            <td>{{ assignment.phase_label }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p class="empty">Заданий пока нет.</p>
+{% endif %}

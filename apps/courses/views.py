@@ -75,6 +75,25 @@ def course_list(request: HttpRequest) -> HttpResponse:
     return render(request, "courses/list.html", context)
 
 
+@login_required
+@require_safe
+def course_detail(request: HttpRequest, course_pk: int) -> HttpResponse:
+    """Страница курса студента: задания с дедлайнами и фазой.
+
+    Владелец перенаправляется на управление курсом, чужой преподаватель — 403,
+    студенту чужой и несуществующий курс дают одинаковый 404.
+    """
+    user = _user(request)
+    try:
+        course = services.get_course_for_viewer(user, course_pk)
+    except Course.DoesNotExist:
+        raise Http404 from None
+    if user.is_teacher:
+        return redirect("courses:manage", course.pk)
+    # Студенту — только узкий контекст, без ORM-объекта курса (анонимность).
+    return render(request, "courses/detail.html", {"page": services.student_course_page(course)})
+
+
 @teacher_required
 @_form_methods
 def course_create(request: HttpRequest) -> HttpResponse:
@@ -102,6 +121,7 @@ def _render_manage(
     context = {
         "course": course,
         "roster": services.course_roster(course),
+        "assignments": services.course_assignment_rows(course),
         "group_form": group_form or GroupForm(),
         "move_form": move_form,
         "move_enrollment_pk": move_enrollment_pk,

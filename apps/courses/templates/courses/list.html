@@ -45,7 +45,9 @@
           <tbody>
             {% for enrollment in enrollments %}
               <tr>
-                <td>{{ enrollment.course.title }}</td>
+                <td>
+                  <a href="{% url 'courses:detail' enrollment.course.pk %}">{{ enrollment.course.title }}</a>
+                </td>
                 <td>
                   {% if enrollment.group %}
                     {{ enrollment.group.number }}

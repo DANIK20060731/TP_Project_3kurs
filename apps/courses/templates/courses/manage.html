@@ -9,6 +9,13 @@
     </p>
     <p class="help">Сообщите код студентам: они вводят его на странице «Записаться».</p>
   </div>
+  <section class="card">
+    <h2>Задания</h2>
+    {% include "assignments/_course_assignments.html" with assignments=assignments %}
+    <p>
+      <a class="btn" href="{% url 'assignments:create' course.pk %}">Создать задание</a>
+    </p>
+  </section>
   <div class="card">
     <form class="form-narrow"
           method="post"
