@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Вход — Peer Review{% endblock %}
+{% block content %}
+  <h1>Вход</h1>
+  <form method="post" action="{% url 'accounts:login' %}">
+    {% csrf_token %}
+    {{ form.as_p }}
+    {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+    <button type="submit">Войти</button>
+  </form>
+  <p>
+    Нет учётной записи? <a href="{% url 'accounts:signup' %}">Регистрация</a>
+  </p>
+{% endblock %}
