@@ -86,11 +86,56 @@ def _build_course_factories() -> dict[str, type]:
     }
 
 
-_LAZY_FACTORIES = ("CourseFactory", "GroupFactory", "EnrollmentFactory")
+# ---------------------------------------------------------------- assignments (T-003)
+
+
+def _default_submission_deadline():
+    """Через неделю от «сейчас», с точностью до минуты (как в поле datetime-local)."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    return (timezone.now() + timedelta(days=7)).replace(second=0, microsecond=0)
+
+
+def _build_assignment_factories() -> dict[str, type]:
+    """Фабрики заданий создаются при первом обращении (см. ``_build_course_factories``)."""
+    from datetime import timedelta
+
+    course_factory = __getattr__("CourseFactory")
+
+    class AssignmentFactory(factory.django.DjangoModelFactory):
+        """Задание курса; дедлайны по умолчанию в будущем: сдача через 7 дней, рецензии — 14."""
+
+        class Meta:
+            model = "assignments.Assignment"
+
+        course = factory.SubFactory(course_factory)
+        title = factory.Sequence(lambda n: f"Задание {n}")
+        description = "Описание задания"
+        allowed_formats = factory.LazyFunction(lambda: ["pdf"])
+        max_file_size_mb = 10
+        kind = "individual"
+        reviews_per_submission = 3
+        submission_deadline = factory.LazyFunction(_default_submission_deadline)
+        review_deadline = factory.LazyAttribute(lambda o: o.submission_deadline + timedelta(days=7))
+        allocated_at = None
+
+    return {"AssignmentFactory": AssignmentFactory}
+
+
+_LAZY_BUILDERS = {
+    "CourseFactory": _build_course_factories,
+    "GroupFactory": _build_course_factories,
+    "EnrollmentFactory": _build_course_factories,
+    "AssignmentFactory": _build_assignment_factories,
+}
 
 
 def __getattr__(name: str) -> type:
-    if name in _LAZY_FACTORIES:
-        globals().update(_build_course_factories())
+    builder = _LAZY_BUILDERS.get(name)
+    if builder is not None:
+        if name not in globals():
+            globals().update(builder())
         return globals()[name]
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
