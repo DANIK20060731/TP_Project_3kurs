@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}
+  {% if assignment %}Изменить задание{% else %}Создать задание{% endif %}
+  — Peer Review
+{% endblock %}
+{% block content %}
+  {% if assignment %}
+    <h1>Изменить задание</h1>
+    <p>
+      Курс: <a href="{% url 'courses:manage' course.pk %}">{{ course.title }}</a>.
+      Фаза: {{ phase.label }}.
+    </p>
+    {% if phase != "submission" %}
+      <div class="alert alert-warning" role="status">
+        {% if phase == "closed" %}
+          Задание завершено: можно изменить только название и описание.
+        {% else %}
+          Дедлайн сдачи прошёл: тип работы, форматы, размер файла и дедлайн сдачи изменить нельзя.
+          {% if assignment.allocated_at %}Работы распределены: число рецензий на работу изменить нельзя.{% endif %}
+        {% endif %}
+      </div>
+    {% endif %}
+    <form class="form-narrow"
+          method="post"
+          action="{% url 'assignments:edit' assignment.pk %}">
+      {% csrf_token %}
+      {% include "_form_fields.html" with form=form %}
+      <button type="submit" class="btn">Сохранить</button>
+      <a class="btn btn-secondary"
+         href="{% url 'assignments:detail' assignment.pk %}">Отмена</a>
+    </form>
+  {% else %}
+    <h1>Создать задание</h1>
+    <p>
+      Курс: <a href="{% url 'courses:manage' course.pk %}">{{ course.title }}</a>
+    </p>
+    <form class="form-narrow"
+          method="post"
+          action="{% url 'assignments:create' course.pk %}">
+      {% csrf_token %}
+      {% include "_form_fields.html" with form=form %}
+      <button type="submit" class="btn">Создать задание</button>
+    </form>
+  {% endif %}
+{% endblock %}

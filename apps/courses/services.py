@@ -6,6 +6,7 @@
 
 import secrets
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
 
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -53,6 +54,27 @@ class CourseRoster:
 
     groups: list[Group]
     sections: list[RosterSection]
+
+
+@dataclass(frozen=True)
+class AssignmentRow:
+    """Строка списка заданий курса: без связей с пользователями (годится студенту)."""
+
+    pk: int
+    title: str
+    submission_deadline: datetime
+    review_deadline: datetime
+    phase_label: str
+
+
+@dataclass(frozen=True)
+class StudentCoursePage:
+    """Страница курса для студента: название, описание и задания — без ORM-объектов."""
+
+    pk: int
+    title: str
+    description: str
+    assignments: list[AssignmentRow]
 
 
 # ---------------------------------------------------------------- код приглашения
@@ -123,6 +145,46 @@ def get_owned_course(owner: User, course_pk: int) -> Course:
     if course.owner_id != owner.pk:
         raise PermissionDenied
     return course
+
+
+def get_course_for_viewer(user: User, course_pk: int) -> Course:
+    """Курс для страницы курса.
+
+    Студент: только курс, на который он записан, иначе ``Course.DoesNotExist`` —
+    одинаково для чужого и несуществующего. Преподаватель: нет курса — ``DoesNotExist``,
+    чужой — ``PermissionDenied``.
+    """
+    if user.is_teacher:
+        return get_owned_course(user, course_pk)
+    return Course.objects.filter(enrollments__student=user).get(pk=course_pk)
+
+
+def course_assignment_rows(course: Course) -> list[AssignmentRow]:
+    """Задания курса для списка (один запрос) с фазой на текущий момент.
+
+    Задания читаются через обратную связь ``course.assignments``, без импорта
+    ``apps.assignments``: зависимости приложений идут только сверху вниз.
+    """
+    return [
+        AssignmentRow(
+            pk=assignment.pk,
+            title=assignment.title,
+            submission_deadline=assignment.submission_deadline,
+            review_deadline=assignment.review_deadline,
+            phase_label=assignment.phase.label,
+        )
+        for assignment in course.assignments.all()
+    ]
+
+
+def student_course_page(course: Course) -> StudentCoursePage:
+    """Узкий контекст страницы курса студента (курс уже проверен на запись)."""
+    return StudentCoursePage(
+        pk=course.pk,
+        title=course.title,
+        description=course.description,
+        assignments=course_assignment_rows(course),
+    )
 
 
 def add_group(course: Course, number: str) -> Group:

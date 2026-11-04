@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% comment %}
+  Экран и студента, и владельца. Контекст узкий: assignment (AssignmentDetails) — параметры
+  задания, course — только pk и название, без ORM-объектов. Связи с пользователями
+  (enrollments, owner, будущие submissions) сюда не выводить: только через сервис с фильтром
+  по текущему пользователю, а работы — только по public_code (CLAUDE.md, инвариант 1).
+{% endcomment %}
+{% block title %}{{ assignment.title }} — Peer Review{% endblock %}
+{% block content %}
+  <h1>{{ assignment.title }}</h1>
+  <p>
+    Курс:
+    {% if is_owner %}
+      <a href="{% url 'courses:manage' assignment.course.pk %}">{{ assignment.course.title }}</a>
+    {% else %}
+      <a href="{% url 'courses:detail' assignment.course.pk %}">{{ assignment.course.title }}</a>
+    {% endif %}
+  </p>
+  {% if assignment.description %}<p>{{ assignment.description|linebreaksbr }}</p>{% endif %}
+  <div class="card">
+    <dl class="details">
+      <dt>Фаза</dt>
+      <dd>{{ assignment.phase.label }}</dd>
+      <dt>Дедлайн сдачи</dt>
+      <dd>
+        <time datetime="{{ assignment.submission_deadline|date:'c' }}">{{ assignment.submission_deadline|date:"d.m.Y H:i" }}</time>
+      </dd>
+      <dt>Дедлайн рецензий</dt>
+      <dd>
+        <time datetime="{{ assignment.review_deadline|date:'c' }}">{{ assignment.review_deadline|date:"d.m.Y H:i" }}</time>
+      </dd>
+      <dt>Тип работы</dt>
+      <dd>{{ assignment.kind_label }}</dd>
+      <dt>Форматы файлов</dt>
+      <dd>{{ assignment.allowed_formats|join:", " }}</dd>
+      <dt>Максимальный размер</dt>
+      <dd>{{ assignment.max_file_size_mb }} МБ</dd>
+      <dt>Рецензий на работу</dt>
+      <dd>{{ assignment.reviews_per_submission }}</dd>
+    </dl>
+  </div>
+  {% if is_owner %}
+    <p>
+      <a class="btn" href="{% url 'assignments:edit' assignment.pk %}">Изменить</a>
+    </p>
+  {% endif %}
+{% endblock %}
