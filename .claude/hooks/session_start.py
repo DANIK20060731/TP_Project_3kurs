@@ -27,7 +27,7 @@ if progress.exists():
 if flag("protect-tests"):
     parts.append(
         "РЕЖИМ protect-tests: тесты зафиксированы, правка tests/** заблокирована. "
-        "Меняйте только код приложения."
+        "Меняйте только код приложения (e2e-tester может создавать новые tests/e2e/test_*.py)."
     )
 
 ok("\n\n".join(parts))

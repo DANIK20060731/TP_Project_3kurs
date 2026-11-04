@@ -47,10 +47,10 @@ flowchart TD
 | Хук | Правило |
 |---|---|
 | SessionStart | агент получает ветку, изменения, хвост PROGRESS.md, активные режимы |
-| PreToolUse: guard_files | нельзя трогать `.env`, закоммиченные миграции, харнесс; в режиме protect-tests — тесты |
+| PreToolUse: guard_files | нельзя трогать `.env`, закоммиченные миграции, харнесс; в режиме protect-tests — тесты (кроме новых `tests/e2e/test_*.py`, которые создаёт e2e-tester) |
 | PreToolUse: guard_bash | нельзя `--no-verify`, force-push, `reset --hard`, отключать покрытие, читать `.env`, коммитить в main |
 | PostToolUse: post_edit | ruff format/fix на файле; напоминание о миграции |
-| Stop: stop_check | `make check-fast` — красный → агент возвращается чинить (до 3 раз, затем обязан честно сообщить) |
+| Stop: stop_check | `make check-fast` — красный → агент возвращается чинить (до 3 раз, затем хук отпускает его и предупреждает человека). Пока работает субагент, проверка откладывается: дерево ещё недописано |
 | Notification | уведомление macOS, когда агент ждёт человека |
 
 Плюс permissions: безопасные команды разрешены без вопросов, `git push`, `uv add`, создание PR — с подтверждением, force-push и `rm -rf` запрещены.
@@ -78,5 +78,5 @@ flowchart TD
 1. `make check` на чистом клоне — зелёный.
 2. Сломать тест и попросить агента закончить — Stop-хук вернёт его чинить.
 3. Попросить агента отредактировать `.env` или закоммиченную миграцию — заблокировано.
-4. Режим protect-tests: `touch .claude/.state/protect-tests` → правка `tests/…` заблокирована.
+4. Режим protect-tests: `touch .claude/.state/protect-tests` → правка `tests/…` заблокирована, создание нового `tests/e2e/test_*.py` разрешено.
 5. `/task T-001` от начала до PR.
