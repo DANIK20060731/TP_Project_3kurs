@@ -64,6 +64,7 @@ class AssignmentRow:
     title: str
     submission_deadline: datetime
     review_deadline: datetime
+    phase: str  # код фазы (значение Phase): модификатор бейджа badge-phase--<код>
     phase_label: str
 
 
@@ -171,6 +172,7 @@ def course_assignment_rows(course: Course) -> list[AssignmentRow]:
             title=assignment.title,
             submission_deadline=assignment.submission_deadline,
             review_deadline=assignment.review_deadline,
+            phase=str(assignment.phase.value),
             phase_label=assignment.phase.label,
         )
         for assignment in course.assignments.all()

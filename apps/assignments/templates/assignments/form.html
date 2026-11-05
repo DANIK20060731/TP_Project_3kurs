@@ -6,7 +6,7 @@
 {% block content %}
   {% if assignment %}
     <h1>Изменить задание</h1>
-    <p>
+    <p class="meta">
       Курс: <a href="{% url 'courses:manage' course.pk %}">{{ course.title }}</a>.
       Фаза: {{ phase.label }}.
     </p>
@@ -25,13 +25,15 @@
           action="{% url 'assignments:edit' assignment.pk %}">
       {% csrf_token %}
       {% include "_form_fields.html" with form=form %}
-      <button type="submit" class="btn">Сохранить</button>
-      <a class="btn btn-secondary"
-         href="{% url 'assignments:detail' assignment.pk %}">Отмена</a>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Сохранить</button>
+        <a class="btn btn-secondary"
+           href="{% url 'assignments:detail' assignment.pk %}">Отмена</a>
+      </div>
     </form>
   {% else %}
     <h1>Создать задание</h1>
-    <p>
+    <p class="meta">
       Курс: <a href="{% url 'courses:manage' course.pk %}">{{ course.title }}</a>
     </p>
     <form class="form-narrow"
@@ -39,7 +41,7 @@
           action="{% url 'assignments:create' course.pk %}">
       {% csrf_token %}
       {% include "_form_fields.html" with form=form %}
-      <button type="submit" class="btn">Создать задание</button>
+      <button type="submit" class="btn btn-primary">Создать задание</button>
     </form>
   {% endif %}
 {% endblock %}

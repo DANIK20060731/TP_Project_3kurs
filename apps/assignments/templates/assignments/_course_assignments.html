@@ -3,31 +3,35 @@
   Использование: {% include "assignments/_course_assignments.html" with assignments=rows %},
   где rows — список apps.courses.services.AssignmentRow (course_assignment_rows).
   В строках нет данных о пользователях — шаблон годится и для экрана студента.
+  .table-stack: на телефоне строки складываются в «листы», подписи столбцов — из data-label
+  (одна разметка для всех ширин). Модификатор бейджа — из кода фазы, не из русского текста.
 {% endcomment %}
 {% if assignments %}
   <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th scope="col">Задание</th>
-          <th scope="col">Дедлайн сдачи</th>
-          <th scope="col">Дедлайн рецензий</th>
-          <th scope="col">Фаза</th>
+    <table class="table-stack" role="table">
+      <thead role="rowgroup">
+        <tr role="row">
+          <th scope="col" role="columnheader">Задание</th>
+          <th scope="col" role="columnheader">Дедлайн сдачи</th>
+          <th scope="col" role="columnheader">Дедлайн рецензий</th>
+          <th scope="col" role="columnheader">Фаза</th>
         </tr>
       </thead>
-      <tbody>
+      <tbody role="rowgroup">
         {% for assignment in assignments %}
-          <tr>
-            <td>
+          <tr role="row">
+            <td class="table-stack__title" role="cell">
               <a href="{% url 'assignments:detail' assignment.pk %}">{{ assignment.title }}</a>
             </td>
-            <td>
+            <td data-label="Дедлайн сдачи" role="cell">
               <time datetime="{{ assignment.submission_deadline|date:'c' }}">{{ assignment.submission_deadline|date:"d.m.Y H:i" }}</time>
             </td>
-            <td>
+            <td data-label="Дедлайн рецензий" role="cell">
               <time datetime="{{ assignment.review_deadline|date:'c' }}">{{ assignment.review_deadline|date:"d.m.Y H:i" }}</time>
             </td>
-            <td>{{ assignment.phase_label }}</td>
+            <td data-label="Фаза" role="cell">
+              <span class="badge badge-phase--{{ assignment.phase }}">{{ assignment.phase_label }}</span>
+            </td>
           </tr>
         {% endfor %}
       </tbody>

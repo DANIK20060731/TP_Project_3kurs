@@ -25,32 +25,13 @@
     {% url 'courses:list' as courses_list_url %}
     {% url 'courses:create' as course_create_url %}
     {% url 'courses:enroll' as course_enroll_url %}
-    <header class="site-header">
-      <div class="site-header__inner">
-        <a class="logo" href="{{ home_url|default:'/' }}">Peer Review</a>
-        <nav aria-label="Основная навигация">
-          {% if request.user.is_authenticated %}
-            {% if courses_list_url %}<a href="{{ courses_list_url }}">Мои курсы</a>{% endif %}
-            {% if request.user.is_teacher %}
-              {% if course_create_url %}<a href="{{ course_create_url }}">Создать курс</a>{% endif %}
-            {% elif course_enroll_url %}
-              <a href="{{ course_enroll_url }}">Записаться</a>
-            {% endif %}
-            <span class="user-name">Вы вошли как {{ request.user.username }}</span>
-            <span class="user-role">{{ request.user.get_role_display }}</span>
-            {% if logout_url %}
-              <form class="logout-form" method="post" action="{{ logout_url }}">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-secondary">Выйти</button>
-              </form>
-            {% endif %}
-          {% else %}
-            {% if login_url %}<a href="{{ login_url }}">Вход</a>{% endif %}
-            {% if signup_url %}<a href="{{ signup_url }}">Регистрация</a>{% endif %}
-          {% endif %}
-        </nav>
-      </div>
-    </header>
+    {% comment %}
+      Страницы ошибок переопределяют блок и передают nav_section="": 403/405 отдаются на
+      разрешённых маршрутах курса, но ни один раздел шапки на них не текущий.
+    {% endcomment %}
+    {% block site_header %}
+      {% include "_site_header.html" %}
+    {% endblock %}
     <main>
       {% if messages %}
         <ul class="messages">
