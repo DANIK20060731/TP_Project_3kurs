@@ -19,7 +19,7 @@
                   <a href="{% url 'courses:manage' course.pk %}">{{ course.title }}</a>
                 </td>
                 <td>
-                  <code>{{ course.invite_code }}</code>
+                  <code class="token">{{ course.invite_code }}</code>
                 </td>
               </tr>
             {% endfor %}

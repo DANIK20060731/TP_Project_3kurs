@@ -1,13 +1,15 @@
 {% extends "base.html" %}
 {% block title %}Регистрация — Peer Review{% endblock %}
 {% block content %}
-  <h1>Регистрация</h1>
-  <form class="form-narrow" method="post" action="{% url 'accounts:signup' %}">
-    {% csrf_token %}
-    {% include "_form_fields.html" with form=form %}
-    <button type="submit" class="btn btn-primary">Зарегистрироваться</button>
-  </form>
-  <p>
-    Уже зарегистрированы? <a href="{% url 'accounts:login' %}">Войдите</a>
-  </p>
+  <div class="card card--plain sheet">
+    <h1>Регистрация</h1>
+    <form class="form-narrow" method="post" action="{% url 'accounts:signup' %}">
+      {% csrf_token %}
+      {% include "_form_fields.html" with form=form %}
+      <button type="submit" class="btn btn-primary">Зарегистрироваться</button>
+    </form>
+    <p>
+      Уже зарегистрированы? <a href="{% url 'accounts:login' %}">Войдите</a>
+    </p>
+  </div>
 {% endblock %}

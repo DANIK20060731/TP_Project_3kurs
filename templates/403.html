@@ -1,7 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Доступ запрещён — Peer Review{% endblock %}
+{% block site_header %}{% include "_site_header.html" with nav_section="" %}{% endblock %}
 {% block content %}
-  <h1>Доступ запрещён</h1>
-  <p>У вас нет прав для просмотра этой страницы.</p>
-  <p><a class="btn btn-secondary" href="{{ home_url|default:'/' }}">На главную</a></p>
+  <div class="card card--plain error-page">
+    <p class="error-code" aria-hidden="true">403</p>
+    <h1>Доступ запрещён</h1>
+    <p>У вас нет прав для просмотра этой страницы.</p>
+    <p><a class="btn btn-secondary" href="{{ home_url|default:'/' }}">На главную</a></p>
+  </div>
 {% endblock %}

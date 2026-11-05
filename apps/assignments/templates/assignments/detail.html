@@ -8,7 +8,7 @@
 {% block title %}{{ assignment.title }} — Peer Review{% endblock %}
 {% block content %}
   <h1>{{ assignment.title }}</h1>
-  <p>
+  <p class="meta">
     Курс:
     {% if is_owner %}
       <a href="{% url 'courses:manage' assignment.course.pk %}">{{ assignment.course.title }}</a>
@@ -16,11 +16,13 @@
       <a href="{% url 'courses:detail' assignment.course.pk %}">{{ assignment.course.title }}</a>
     {% endif %}
   </p>
-  {% if assignment.description %}<p>{{ assignment.description|linebreaksbr }}</p>{% endif %}
+  {% if assignment.description %}<p class="prose">{{ assignment.description|linebreaksbr }}</p>{% endif %}
   <div class="card">
     <dl class="details">
       <dt>Фаза</dt>
-      <dd>{{ assignment.phase.label }}</dd>
+      <dd>
+        <span class="badge badge-phase--{{ assignment.phase.value }}">{{ assignment.phase.label }}</span>
+      </dd>
       <dt>Дедлайн сдачи</dt>
       <dd>
         <time datetime="{{ assignment.submission_deadline|date:'c' }}">{{ assignment.submission_deadline|date:"d.m.Y H:i" }}</time>

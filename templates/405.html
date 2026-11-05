@@ -1,13 +1,17 @@
 {% extends "base.html" %}
 {% block title %}Действие недоступно — Peer Review{% endblock %}
+{% block site_header %}{% include "_site_header.html" with nav_section="" %}{% endblock %}
 {% block content %}
-  <h1>Действие недоступно</h1>
-  <p>Эта страница открывается только из формы. Вернитесь на предыдущую страницу и отправьте форму ещё раз.</p>
-  <p>
-    {% if back_url %}
-      <a class="btn btn-secondary" href="{{ back_url }}">Вернуться к курсу</a>
-    {% else %}
-      <a class="btn btn-secondary" href="{{ home_url|default:'/' }}">На главную</a>
-    {% endif %}
-  </p>
+  <div class="card card--plain error-page">
+    <p class="error-code" aria-hidden="true">405</p>
+    <h1>Действие недоступно</h1>
+    <p>Эта страница открывается только из формы. Вернитесь на предыдущую страницу и отправьте форму ещё раз.</p>
+    <p>
+      {% if back_url %}
+        <a class="btn btn-secondary" href="{{ back_url }}">Вернуться к курсу</a>
+      {% else %}
+        <a class="btn btn-secondary" href="{{ home_url|default:'/' }}">На главную</a>
+      {% endif %}
+    </p>
+  </div>
 {% endblock %}
