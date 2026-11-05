@@ -1,5 +1,5 @@
 /*
- * Peer Review — стиль «Редакторская правка» (T-017, поверх T-016).
+ * Peer Review — стиль «Редакторская правка» (T-017, поверх T-016; главная — T-018).
  * Тёплая бумага, чёрные чернила, красный редакторский карандаш. Mobile-first,
  * только системные шрифты, цвета — только токенами из :root.
  * Стили только здесь: в шаблонах без style="…" и <style>.
@@ -33,6 +33,12 @@
  *   Сообщение     ul.messages > li.message.message-{info|success|warning|error};
  *                 .alert.alert-{info|success|warning|error} — сообщение внутри страницы
  *   Пустой список .empty — «Пока ничего нет»
+ *   Главная       .lead — лид-абзац под h1, .home-section — раздел главной,
+ *                 .home-grid — курсы и дедлайны (две колонки от 64rem)
+ *                 ol.steps > li > .steps__title + .steps__text — шаги с номерами pencil
+ *                 ul.course-grid > li.card.card--course — сетка карточек курсов
+ *                 ol.deadlines > li > time.deadlines__date + .deadlines__body —
+ *                 ближайшие дедлайны: дата моноширинная, справа название, курс, бейдж
  *   Ошибки        .error-page — лист страницы 403/404/405, .error-code — декоративная цифра
  *   Скрытый текст .visually-hidden — виден только скринридерам
  *
@@ -472,6 +478,7 @@ input[type="radio"] {
 
 /* Пометка редактора у текста ошибки (декор, в разметке её нет). */
 .field-errors li::before {
+  content: "✎ ";
   content: "✎ " / "";
 }
 
@@ -764,6 +771,7 @@ tbody tr:hover {
 
 .message::before,
 .alert::before {
+  content: "¶";
   content: "¶" / "";
   margin-right: var(--space-2);
   font-weight: 700;
@@ -777,6 +785,7 @@ tbody tr:hover {
 
 .message-success::before,
 .alert-success::before {
+  content: "✓";
   content: "✓" / "";
 }
 
@@ -788,6 +797,7 @@ tbody tr:hover {
 
 .message-warning::before,
 .alert-warning::before {
+  content: "!";
   content: "!" / "";
 }
 
@@ -799,6 +809,7 @@ tbody tr:hover {
 
 .message-error::before,
 .alert-error::before {
+  content: "✎";
   content: "✎" / "";
 }
 
@@ -813,6 +824,127 @@ tbody tr:hover {
   background: transparent;
   border: 1px dashed var(--color-rule);
   border-radius: var(--radius-sm);
+}
+
+/* ---------------------------------------------------------------- главная (T-018) */
+
+.lead {
+  font-family: var(--font-serif);
+  font-size: 1.125rem;
+  color: var(--color-ink-muted);
+}
+
+.home-section {
+  margin-bottom: var(--space-8);
+}
+
+/* Шаги peer-review: крупные серифные номера карандашом, как пометки на полях. */
+.steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.steps > li {
+  position: relative;
+  max-width: var(--measure);
+  margin-bottom: var(--space-5);
+  padding-left: var(--space-12);
+  counter-increment: step;
+}
+
+.steps > li::before {
+  content: counter(step);
+  content: counter(step) / "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--space-10);
+  font-family: var(--font-serif);
+  font-size: 2.25rem;
+  font-style: italic;
+  font-weight: 700;
+  line-height: 1;
+  text-align: right;
+  color: var(--color-pencil);
+}
+
+.steps__title {
+  display: block;
+  font-family: var(--font-serif);
+  font-size: 1.125rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.steps__text {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--color-ink-muted);
+}
+
+.course-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.course-grid > .card {
+  margin-bottom: 0;
+}
+
+.card--course:hover,
+.card--course:focus-within {
+  border-color: var(--color-pencil);
+}
+
+.card--course .stretched-link {
+  text-decoration: none;
+}
+
+.card--course .stretched-link:hover {
+  color: var(--color-pencil);
+}
+
+/* Ближайшие дедлайны: дата слева моноширинная, справа название, курс и фаза. */
+.deadlines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--color-rule);
+}
+
+.deadlines > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.deadlines__date {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  color: var(--color-pencil);
+}
+
+.deadlines__body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+
+.deadlines__title {
+  flex-basis: 100%;
+  font-family: var(--font-serif);
+  font-weight: 700;
 }
 
 /* ---------------------------------------------------------------- страницы ошибок */
@@ -856,6 +988,29 @@ tbody tr:hover {
 
   .details dd {
     margin-bottom: 0;
+  }
+
+  .course-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .deadlines > li {
+    grid-template-columns: max-content minmax(0, 1fr);
+  }
+}
+
+/* ---------------------------------------------------------------- ≥ 1024px */
+
+@media (min-width: 64rem) {
+  .home-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    gap: var(--space-8);
+    align-items: start;
+  }
+
+  .home-grid .course-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
