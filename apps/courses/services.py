@@ -12,6 +12,7 @@ from enum import Enum
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import QuerySet
+from django.utils import timezone
 
 from apps.accounts.models import User
 
@@ -76,6 +77,44 @@ class StudentCoursePage:
     title: str
     description: str
     assignments: list[AssignmentRow]
+
+
+HOME_DEADLINES_LIMIT = 5
+# Вид дедлайна → подпись на главной (решение 1 T-018).
+DEADLINE_KIND_LABELS = {"submission": "сдача работ", "review": "рецензии"}
+# Фаза задания → вид дедлайна этой фазы; у «Завершено» дедлайна нет.
+PHASE_DEADLINE_KIND = {"submission": "submission", "allocation": "review", "review": "review"}
+
+
+@dataclass(frozen=True)
+class HomeCourse:
+    """Карточка курса на главной; ``url_name`` — куда ведёт карточка (по роли)."""
+
+    pk: int
+    title: str
+    url_name: str
+
+
+@dataclass(frozen=True)
+class HomeDeadline:
+    """Ближайший дедлайн задания: дедлайн текущей фазы, без связей с пользователями."""
+
+    assignment_pk: int
+    assignment_title: str
+    course_title: str
+    kind: str  # "submission" | "review"
+    kind_label: str
+    deadline: datetime
+    phase: str  # код фазы (значение Phase): модификатор бейджа badge-phase--<код>
+    phase_label: str
+
+
+@dataclass(frozen=True)
+class HomePage:
+    """Узкий контекст главной вошедшего: курсы и ближайшие дедлайны, без ORM-объектов."""
+
+    courses: tuple[HomeCourse, ...]
+    deadlines: tuple[HomeDeadline, ...]
 
 
 # ---------------------------------------------------------------- код приглашения
@@ -186,6 +225,56 @@ def student_course_page(course: Course) -> StudentCoursePage:
         title=course.title,
         description=course.description,
         assignments=course_assignment_rows(course),
+    )
+
+
+def home_page(user: User) -> HomePage:
+    """Главная вошедшего: его курсы и до 5 ближайших дедлайнов (два запроса).
+
+    Студенту — курсы, на которые он записан (карточка ведёт на страницу курса),
+    преподавателю — его курсы (карточка ведёт на управление). Для каждого задания
+    берётся дедлайн текущей фазы (``Assignment.phase_at`` в один момент ``now``):
+    сдача работ → дедлайн сдачи, распределение и рецензирование → дедлайн рецензий,
+    завершено → ничего. Поэтому показанный дедлайн всегда строго позже ``now``.
+    Порядок — по дате, при равенстве — по ``pk`` задания.
+    """
+    if user.is_teacher:
+        courses = Course.objects.filter(owner=user)
+        url_name = "courses:manage"
+    else:
+        courses = Course.objects.filter(enrollments__student=user)
+        url_name = "courses:detail"
+    course_list = list(courses.order_by("title", "pk").prefetch_related("assignments"))
+
+    now = timezone.now()
+    deadlines: list[HomeDeadline] = []
+    for course in course_list:
+        for assignment in course.assignments.all():
+            phase = assignment.phase_at(now)
+            kind = PHASE_DEADLINE_KIND.get(str(phase.value))
+            if kind is None:
+                continue
+            deadline = (
+                assignment.submission_deadline
+                if kind == "submission"
+                else assignment.review_deadline
+            )
+            deadlines.append(
+                HomeDeadline(
+                    assignment_pk=assignment.pk,
+                    assignment_title=assignment.title,
+                    course_title=course.title,
+                    kind=kind,
+                    kind_label=DEADLINE_KIND_LABELS[kind],
+                    deadline=deadline,
+                    phase=str(phase.value),
+                    phase_label=phase.label,
+                )
+            )
+    deadlines.sort(key=lambda d: (d.deadline, d.assignment_pk))
+    return HomePage(
+        courses=tuple(HomeCourse(pk=c.pk, title=c.title, url_name=url_name) for c in course_list),
+        deadlines=tuple(deadlines[:HOME_DEADLINES_LIMIT]),
     )
 
 

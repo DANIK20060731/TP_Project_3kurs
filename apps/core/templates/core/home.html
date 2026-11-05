@@ -1,5 +1,84 @@
 {% extends "base.html" %}
+{% comment %}
+  Главная (T-018). Гостю — «титульный лист»: что такое платформа, 3 шага и призывы.
+  Вошедшему — page (HomePage из apps.courses.services.home_page): курсы и ближайшие
+  дедлайны, только dataclass-строки, без ORM-объектов (ARCHITECTURE «Узкий контекст»).
+  Шаблон рендерится и без page (тестовые view): тогда блоки курсов и дедлайнов скрыты.
+  Подписи ссылок не должны содержать «вход», «регистрация», «мои курсы», «записаться»,
+  «создать курс»: e2e ищут ссылки шапки по подстроке (T-018, AC-2 и AC-8).
+{% endcomment %}
 {% block content %}
   <h1>Платформа peer-review студенческих работ</h1>
-  <p>Загрузите работу, отрецензируйте работы однокурсников по рубрике и получите обратную связь.</p>
+  {% if not request.user.is_authenticated %}
+    <p class="lead prose">
+      Загрузите работу, отрецензируйте работы однокурсников по рубрике и получите обратную связь.
+    </p>
+    <section class="home-section" aria-labelledby="how-it-works">
+      <h2 id="how-it-works">Как это работает</h2>
+      <ol class="steps">
+        <li>
+          <span class="steps__title">Сдайте работу до дедлайна</span>
+          <span class="steps__text">Загрузите файл в задание курса — до дедлайна его можно заменить.</span>
+        </li>
+        <li>
+          <span class="steps__title">Анонимно отрецензируйте работы однокурсников по рубрике</span>
+          <span class="steps__text">Система сама распределит работы: вы не видите авторов, авторы не видят вас.</span>
+        </li>
+        <li>
+          <span class="steps__title">Получите рецензии и итоговую оценку</span>
+          <span class="steps__text">Оценки по критериям рубрики и комментарии рецензентов.</span>
+        </li>
+      </ol>
+    </section>
+    <p class="form-actions">
+      <a class="btn" href="{% url 'accounts:login' %}">Войти</a>
+      <a class="btn btn-secondary" href="{% url 'accounts:signup' %}">Создать учётную запись</a>
+    </p>
+  {% elif page %}
+    <div class="home-grid">
+      <section class="home-section" aria-labelledby="home-courses">
+        <h2 id="home-courses">Курсы</h2>
+        {% if page.courses %}
+          <ul class="course-grid">
+            {% for course in page.courses %}
+              <li class="card card--course">
+                <h3>
+                  <a class="stretched-link" href="{% url course.url_name course.pk %}">{{ course.title }}</a>
+                </h3>
+              </li>
+            {% endfor %}
+          </ul>
+        {% elif request.user.is_teacher %}
+          <p class="empty">
+            У вас пока нет курсов.
+            <a href="{% url 'courses:create' %}">Новый курс</a>
+          </p>
+        {% else %}
+          <p class="empty">
+            Вы пока не записаны ни на один курс — попросите у преподавателя код.
+            <a href="{% url 'courses:enroll' %}">Ввести код приглашения</a>
+          </p>
+        {% endif %}
+      </section>
+      <section class="home-section" aria-labelledby="home-deadlines">
+        <h2 id="home-deadlines">Ближайшие дедлайны</h2>
+        {% if page.deadlines %}
+          <ol class="deadlines">
+            {% for item in page.deadlines %}
+              <li>
+                <time class="deadlines__date" datetime="{{ item.deadline|date:'c' }}">{{ item.deadline|date:"d.m.Y H:i" }}</time>
+                <div class="deadlines__body">
+                  <a class="deadlines__title" href="{% url 'assignments:detail' item.assignment_pk %}">{{ item.assignment_title }}</a>
+                  <span class="meta">{{ item.course_title }} · {{ item.kind_label }}</span>
+                  <span class="badge badge-phase--{{ item.phase }}">{{ item.phase_label }}</span>
+                </div>
+              </li>
+            {% endfor %}
+          </ol>
+        {% else %}
+          <p class="empty">Ближайших дедлайнов нет.</p>
+        {% endif %}
+      </section>
+    </div>
+  {% endif %}
 {% endblock %}
