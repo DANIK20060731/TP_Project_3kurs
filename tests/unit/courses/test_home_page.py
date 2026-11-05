@@ -358,7 +358,9 @@ def test_deadlines_sorted_by_date_then_assignment_pk_and_limited_to_five():
         latest = _assignment(course_a, "submission", shift=timedelta(days=30))
         soonest = _assignment(course_b, "allocation", shift=timedelta(days=-5))  # рец. через 1 д.
         mid = _assignment(course_a, "submission", shift=timedelta(days=2))  # сдача через 4 д.
-        later = _assignment(course_b, "review", shift=timedelta(days=5))  # рец. через 10 д.
+        later = _assignment(
+            course_b, "review", shift=timedelta(days=1)
+        )  # сдача прошла, рец. через 6 д.
         extra = _assignment(course_a, "submission", shift=timedelta(days=20))
         _assignment(course_b, "closed")
 
