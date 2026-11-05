@@ -230,13 +230,15 @@ def test_header_wordmark_is_home_link_named_peer_review(client, world, who):
 # ---------------------------------------------------------------- AC-8, AC-9
 
 
-def _current_links(response) -> list[Element]:
-    header = _header(response)
+def _current_links(header: Element) -> list[Element]:
     return [el for el in header.iter() if el.attrs.get("aria-current") is not None]
 
 
 def _assert_current(response, expected: str | None) -> None:
-    current = _current_links(response)
+    # Один разбор на проверку и сравнение через «is»: Element — dataclass с parent,
+    # и «==» между деревьями разных разборов уходит в бесконечную рекурсию.
+    header = _header(response)
+    current = _current_links(header)
     if expected is None:
         assert current == [], f"подсвечен раздел: {[a.text for a in current]}"
         return
@@ -246,9 +248,9 @@ def _assert_current(response, expected: str | None) -> None:
     assert link.attrs.get("aria-current") == "page"
     # AC-9: текст ссылки прежний, без скрытых добавок.
     assert link.text == expected
-    nav = _header(response).find("nav")
+    nav = header.find("nav")
     assert nav is not None
-    assert link in nav.find_all("a"), "текущая ссылка — не в nav шапки"
+    assert any(a is link for a in nav.find_all("a")), "текущая ссылка — не в nav шапки"
 
 
 STUDENT_CASES = [
@@ -318,7 +320,9 @@ def test_role_is_single_badge_in_header(client, world, who, label):
         badges = _by_class(tree, "badge-role")
         assert len(badges) == 1, f"{url}: бейджей роли {len(badges)}"
         assert badges[0].text == label
-        assert badges[0] in _header(response).iter()
+        header = tree.find("header")
+        assert header is not None
+        assert any(el is badges[0] for el in header.iter())
         html = response.content.decode()
         assert html.count("Вы вошли как") == 1
         assert f"Вы вошли как {user.username}" in _header(response).text
@@ -561,4 +565,4 @@ def test_error_pages_have_decorative_code_and_single_way_back(client, world):
 def test_error_pages_highlight_no_section(client, world):
     """AC-8 (решение 7): на страницах ошибок ни одна ссылка nav не текущая."""
     for name, response, _status, _back in _error_cases(client, world):
-        assert _current_links(response) == [], f"{name}: подсвечен раздел"
+        assert _current_links(_header(response)) == [], f"{name}: подсвечен раздел"
