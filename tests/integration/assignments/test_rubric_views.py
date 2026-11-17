@@ -2,9 +2,11 @@
 
 from dataclasses import fields, is_dataclass
 from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
 
 import pytest
 from django.db.models import Model
+from django.shortcuts import render
 from django.test import Client
 from django.urls import reverse
 from freezegun import freeze_time
@@ -226,7 +228,8 @@ def test_enrolled_student_reads_narrow_context_without_identity(client, assignme
     classmate = EnrollmentFactory(course=assignment.course).student
     student = EnrollmentFactory(course=assignment.course).student
     client.force_login(student)
-    response = client.get(url("rubric", assignment))
+    with patch("apps.assignments.rubric_views.render", wraps=render) as render_spy:
+        response = client.get(url("rubric", assignment))
     assert response.status_code == 200
     content = response.content.decode()
     for secret in (
@@ -238,8 +241,11 @@ def test_enrolled_student_reads_narrow_context_without_identity(client, assignme
     ):
         assert secret not in content
     assert url("rubric_edit", assignment) not in content
-    view_context = response.context[-1]
+    # Auth context processor штатно добавляет текущего пользователя. Проверяем
+    # именно словарь view: он не должен подменять пользователя для общей шапки.
+    view_context = render_spy.call_args.args[2]
     assert "user" not in view_context
+    assert response.context["user"] == student
 
     def check(value):
         assert not isinstance(value, Model)
