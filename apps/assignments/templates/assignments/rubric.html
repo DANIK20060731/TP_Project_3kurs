@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Рубрика — {{ assignment.title }} — Peer Review{% endblock %}
+{% block content %}
+  <h1>Рубрика: {{ assignment.title }}</h1>
+  <p><a href="{% url 'assignments:detail' assignment.pk %}">К заданию</a></p>
+  {% if rubric %}
+    <p>Максимальный взвешенный балл: <strong>{{ rubric.max_score }}</strong></p>
+    <div class="table-wrap">
+      <table class="table-stack" role="table">
+        <thead role="rowgroup">
+          <tr role="row">
+            <th scope="col" role="columnheader">Критерий</th>
+            <th scope="col" role="columnheader">Вес</th>
+            <th scope="col" role="columnheader">Шкала</th>
+          </tr>
+        </thead>
+        <tbody role="rowgroup">
+          {% for criterion in rubric.criteria %}
+            <tr role="row">
+              <td data-label="Критерий" role="cell">
+                <strong>{{ criterion.title }}</strong>
+                {% if criterion.description %}<p>{{ criterion.description|linebreaksbr }}</p>{% endif %}
+              </td>
+              <td data-label="Вес" role="cell">{{ criterion.weight }}</td>
+              <td data-label="Шкала" role="cell">
+                <ol>
+                  {% for level in criterion.levels %}
+                    <li><strong>{{ level.points }}</strong> — {{ level.description }}</li>
+                  {% endfor %}
+                </ol>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="empty">Рубрика пока не создана.</p>
+  {% endif %}
+  {% if editable %}
+    <p><a class="btn" href="{% url 'assignments:rubric_edit' assignment.pk %}">Изменить рубрику</a></p>
+    {% if sources %}
+      <form method="post" action="{% url 'assignments:rubric_copy' assignment.pk %}">
+        {% csrf_token %}
+        <div class="field">
+          <label for="source-assignment">Скопировать из задания</label>
+          <select name="source_assignment" id="source-assignment" required>
+            {% for source in sources %}<option value="{{ source.pk }}">{{ source.course.title }} — {{ source.title }}</option>{% endfor %}
+          </select>
+        </div>
+        <p class="help">Копирование заменит текущие критерии и уровни.</p>
+        <button type="submit">Скопировать рубрику</button>
+      </form>
+    {% endif %}
+  {% else %}
+    <p class="help">Рубрика доступна только для просмотра.</p>
+  {% endif %}
+{% endblock %}

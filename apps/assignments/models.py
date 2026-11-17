@@ -152,3 +152,70 @@ class Assignment(models.Model):
     def phase(self) -> Phase:
         """Текущая фаза задания."""
         return self.phase_at(timezone.now())
+
+
+class Rubric(models.Model):
+    """Набор критериев оценивания одного задания."""
+
+    assignment = models.OneToOneField(
+        Assignment, verbose_name="задание", related_name="rubric", on_delete=models.CASCADE
+    )
+
+    class Meta:
+        verbose_name = "рубрика"
+        verbose_name_plural = "рубрики"
+
+    def __str__(self) -> str:
+        return f"Рубрика задания {self.assignment_id}"
+
+
+class Criterion(models.Model):
+    """Критерий с положительным весом и явно заданным порядком."""
+
+    rubric = models.ForeignKey(
+        Rubric, verbose_name="рубрика", related_name="criteria", on_delete=models.CASCADE
+    )
+    title = models.CharField("Название", max_length=200)
+    description = models.TextField("Описание", blank=True)
+    weight = models.DecimalField("Вес", max_digits=8, decimal_places=2)
+    order = models.PositiveSmallIntegerField("Порядок", default=0)
+
+    class Meta:
+        verbose_name = "критерий"
+        verbose_name_plural = "критерии"
+        ordering = ["order", "pk"]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(weight__gt=0), name="assignments_criterion_weight_positive"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return self.title
+
+
+class ScaleLevel(models.Model):
+    """Уникальный балл шкалы критерия и его описание."""
+
+    criterion = models.ForeignKey(
+        Criterion, verbose_name="критерий", related_name="levels", on_delete=models.CASCADE
+    )
+    points = models.DecimalField("Балл", max_digits=8, decimal_places=2)
+    description = models.TextField("Описание уровня", blank=True)
+    order = models.PositiveSmallIntegerField("Порядок", default=0)
+
+    class Meta:
+        verbose_name = "уровень шкалы"
+        verbose_name_plural = "уровни шкалы"
+        ordering = ["order", "pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["criterion", "points"], name="assignments_level_unique_points"
+            ),
+            models.CheckConstraint(
+                condition=Q(points__gte=0), name="assignments_level_points_nonnegative"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return str(self.points)
