@@ -1,0 +1,50 @@
+<form id="rubric-editor"
+      method="post"
+      action="{% url 'assignments:rubric_edit' assignment.pk %}">
+  {% csrf_token %}
+  {% for error in editor.errors %}<p class="alert alert-error" role="alert">{{ error }}</p>{% endfor %}
+  {% if editor.criteria.non_form_errors %}
+    <div class="field-errors" role="alert">{{ editor.criteria.non_form_errors }}</div>
+  {% endif %}
+  {{ editor.criteria.management_form }}
+  {% for criterion, levels in editor.rows %}
+    <fieldset class="card">
+      <legend>Критерий {{ forloop.counter }}</legend>
+      {% include "_form_fields.html" with form=criterion %}
+      {% if levels.non_form_errors %}<div class="field-errors" role="alert">{{ levels.non_form_errors }}</div>{% endif %}
+      {{ levels.management_form }}
+      {% for level in levels %}
+        <fieldset class="card">
+          <legend>Уровень {{ forloop.counter }}</legend>
+          {% include "_form_fields.html" with form=level %}
+        </fieldset>
+      {% endfor %}
+      <p class="help">Отметьте «Удалить», чтобы исключить уровень при сохранении.</p>
+      <button type="submit"
+              name="level_criterion_index"
+              value="{{ forloop.counter0 }}"
+              formaction="{% url 'assignments:rubric_criterion_add' assignment.pk %}"
+              formnovalidate
+              hx-post="{% url 'assignments:rubric_criterion_add' assignment.pk %}"
+              hx-target="#rubric-editor"
+              hx-swap="outerHTML">Добавить уровень</button>
+      <button type="submit"
+              name="criterion_index"
+              value="{{ forloop.counter0 }}"
+              formaction="{% url 'assignments:rubric_criterion_remove' assignment.pk %}"
+              formnovalidate
+              hx-post="{% url 'assignments:rubric_criterion_remove' assignment.pk %}"
+              hx-target="#rubric-editor"
+              hx-swap="outerHTML">Удалить критерий</button>
+    </fieldset>
+  {% endfor %}
+  <p>
+    <button type="submit"
+            formaction="{% url 'assignments:rubric_criterion_add' assignment.pk %}"
+            formnovalidate
+            hx-post="{% url 'assignments:rubric_criterion_add' assignment.pk %}"
+            hx-target="#rubric-editor"
+            hx-swap="outerHTML">Добавить критерий</button>
+    <button type="submit" class="btn-primary">Сохранить рубрику</button>
+  </p>
+</form>

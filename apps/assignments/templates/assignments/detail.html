@@ -41,6 +41,7 @@
       <dd>{{ assignment.reviews_per_submission }}</dd>
     </dl>
   </div>
+  <p><a href="{% url 'assignments:rubric' assignment.pk %}">Рубрика</a></p>
   {% if is_owner %}
     <p>
       <a class="btn" href="{% url 'assignments:edit' assignment.pk %}">Изменить</a>
