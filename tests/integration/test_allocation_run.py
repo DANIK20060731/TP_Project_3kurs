@@ -391,3 +391,27 @@ def test_concurrent_start_saves_exactly_one_run():
         assert sorted(future.result(timeout=20) for future in futures) == [False, True]
     run = AllocationRun.objects.get(assignment=assignment)
     assert ReviewAssignment.objects.filter(run=run).count() == len(works)
+
+
+def test_failed_allocation_reason_is_scoped_to_owner_and_assignment(client, monkeypatch):
+    """AC-3, AC-5: непрочитанная причина не появляется на другом экране или после входа студента."""
+    from apps.allocation import InfeasibleAllocation
+
+    assignment, works, teams = assignment_for_allocation()
+    other = AssignmentFactory(course=assignment.course)
+    marker = str(works[0].public_code).encode()
+
+    def cannot_allocate(*args, **kwargs):
+        raise InfeasibleAllocation(f"Не хватает рецензентов для {works[0].public_code}.")
+
+    monkeypatch.setattr(services, "allocate", cannot_allocate)
+    client.force_login(assignment.course.owner)
+
+    assert client.post(allocation_url(assignment)).status_code == 302
+    assert marker not in client.get(detail_url(other)).content
+    assert marker in client.get(detail_url(assignment)).content
+    assert marker not in client.get(detail_url(assignment)).content
+
+    assert client.post(allocation_url(assignment)).status_code == 302
+    client.force_login(teams[0][0])
+    assert marker not in client.get(detail_url(assignment)).content

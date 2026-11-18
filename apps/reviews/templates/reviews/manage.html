@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Распределение — {{ assignment.title }}{% endblock %}
+{% block content %}
+  <h1>Распределение рецензий</h1>
+  <p>
+    <a href="{% url 'assignments:detail' assignment.pk %}">{{ assignment.title }}</a>
+  </p>
+  <div class="card">
+    <dl class="details">
+      <dt>Запуск</dt>
+      <dd>
+        <time datetime="{{ run.created_at|date:'c' }}">{{ run.created_at|date:"d.m.Y H:i" }}</time>
+      </dd>
+      <dt>Алгоритм</dt>
+      <dd>
+        {{ run.get_algorithm_display }}
+      </dd>
+      <dt>Рецензий на работу</dt>
+      <dd>
+        {{ run.k }}
+      </dd>
+      <dt>Seed</dt>
+      <dd>
+        <code>{{ run.seed|stringformat:"d" }}</code>
+      </dd>
+    </dl>
+  </div>
+  {% if selected %}
+    <section class="card" aria-labelledby="replacement">
+      <h2 id="replacement">Переназначить рецензию</h2>
+      <p>
+        Работа <code>{{ selected.submission.public_code }}</code>,
+        текущий рецензент — {{ selected.reviewer.username }}.
+      </p>
+      <form method="post" action="{% url 'reviews:reassign' assignment.pk selected.pk %}">
+        {% csrf_token %}
+        <div class="field">
+          <label for="reviewer">Новый рецензент</label>
+          <select id="reviewer" name="reviewer" aria-describedby="balance-help" required>
+            <option value="">Выберите студента</option>
+            {% for candidate in candidates %}
+              <option value="{{ candidate.pk }}">{{ candidate.username }}</option>
+            {% endfor %}
+          </select>
+          <p id="balance-help" class="help">После замены нагрузка студентов может отличаться максимум на одно назначение.</p>
+        </div>
+        <button class="btn-primary" type="submit">Сохранить назначение</button>
+        <a class="btn-secondary" href="{% url 'reviews:manage' assignment.pk %}">Отмена</a>
+      </form>
+    </section>
+  {% endif %}
+  <h2>Назначения</h2>
+  <div class="table-wrap">
+    <table aria-label="Назначения на рецензирование">
+      <thead>
+        <tr>
+          <th scope="col">Код работы</th>
+          <th scope="col">Рецензент</th>
+          {% if assignment.phase.value == "review" %}<th scope="col">Действие</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in assignments %}
+          <tr>
+            <td>
+              <code>{{ item.submission.public_code }}</code>
+            </td>
+            <td>{{ item.reviewer.username }}</td>
+            {% if assignment.phase.value == "review" %}
+              <td>
+                <a href="?replace={{ item.pk }}#replacement"
+                   aria-label="Переназначить рецензию {{ item.reviewer.username }} на работу {{ item.submission.public_code }}">Переназначить</a>
+              </td>
+            {% endif %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

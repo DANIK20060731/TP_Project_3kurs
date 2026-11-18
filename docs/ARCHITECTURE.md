@@ -46,12 +46,18 @@ erDiagram
   ReviewAssignment ||--o| Review : ""
   Review ||--o{ CriterionScore : ""
   Review ||--o{ QualityFlag : ""
-  Assignment ||--o{ AllocationRun : "seed, параметры"
+  Assignment ||--o| AllocationRun : "seed, параметры"
+  AllocationRun ||--o{ ReviewAssignment : назначения
 ```
 Ключевые поля:
 - `Submission.public_code` — случайный код, единственный идентификатор работы, видимый рецензенту.
 - `ReviewAssignment(submission, reviewer)` — уникальная пара. Взаимность и самоназначение проверяются сервисом и property-тестами алгоритма.
 - `AllocationRun(assignment, seed, k, algorithm, created_at)` — для воспроизводимости.
+  Для задания сохраняется один запуск. Сервис блокирует строку задания и одной
+  транзакцией записывает запуск, назначения и `allocated_at`.
+- При ручном переназначении блокируется та же строка задания и проверяется весь
+  граф. Студенту сервис выдаёт только UUID назначенных ему работ. Сведения о
+  запуске и причина отказа доступны владельцу задания.
 
 ## Анонимность в views и шаблонах
 Инвариант 1 из `CLAUDE.md` в виде правил для экранов работ и рецензий (сформулированы по итогам аудита T-016). anonymity-auditor проверяет каждое.
