@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Сдача работы — Peer Review{% endblock %}
+{% block content %}
+  <h1>Сдача работы</h1>
+  <p>
+    <a href="{% url 'assignments:detail' assignment.pk %}">{{ assignment.title }}</a>
+  </p>
+  {% if code %}
+    <p>Код работы <span class="token">{{ code }}</span></p>
+    <p>
+      <a href="{% url 'submissions:submission_download' code %}">Скачать работу</a>
+    </p>
+  {% endif %}
+  {% if expired %}<p>Срок сдачи истёк.</p>{% endif %}
+  {% if form %}
+    <p>Форматы {{ assignment.allowed_formats|join:", " }}, до {{ assignment.max_file_size_mb }} МБ.</p>
+    <form method="post" enctype="multipart/form-data" class="form-narrow">
+      {% csrf_token %}
+      {% include "_form_fields.html" with form=form %}
+      <button type="submit" class="btn btn-primary">
+        {% if code %}
+          Заменить файл
+        {% else %}
+          Сдать работу
+        {% endif %}
+      </button>
+    </form>
+  {% endif %}
+{% endblock %}

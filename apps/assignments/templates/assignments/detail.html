@@ -46,5 +46,9 @@
     <p>
       <a class="btn" href="{% url 'assignments:edit' assignment.pk %}">Изменить</a>
     </p>
+  {% else %}
+    <p>
+      <a href="{% url 'submissions:submission' assignment.pk %}">Сдача работы</a>
+    </p>
   {% endif %}
 {% endblock %}

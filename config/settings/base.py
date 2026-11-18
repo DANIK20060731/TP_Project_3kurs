@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.courses",
     "apps.assignments",
+    "apps.submissions",
 ]
 
 MIDDLEWARE = [
@@ -81,6 +82,7 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
+SUBMISSION_ROOT = BASE_DIR / "private_submissions"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
