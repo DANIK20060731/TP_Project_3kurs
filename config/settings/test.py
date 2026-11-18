@@ -8,3 +8,4 @@ SECRET_KEY = "test-only-secret-key"  # noqa: S105
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 MEDIA_ROOT = BASE_DIR / ".pytest_cache" / "media"
+SUBMISSION_ROOT = BASE_DIR / ".pytest_cache" / "private_submissions"

@@ -44,3 +44,20 @@ class TeacherRequiredMixin(UserPassesTestMixin):
 
     def test_func(self) -> bool:
         return _is_teacher(self.request)
+
+
+def student_required(view: Callable[..., HttpResponse]) -> Callable[..., HttpResponse]:
+    """Декоратор view: доступ только студенту (роль ``student``).
+
+    Гость перенаправляется на страницу входа (с ``next``), преподаватель получает 403.
+    """
+
+    @wraps(view)
+    def wrapper(request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
+        if not request.user.is_authenticated:
+            return redirect_to_login(request.get_full_path())
+        if _is_teacher(request):
+            raise PermissionDenied
+        return view(request, *args, **kwargs)
+
+    return wrapper

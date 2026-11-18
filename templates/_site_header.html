@@ -1,0 +1,37 @@
+{% comment %}
+  Шапка сайта (подключается из base.html). Переменные home_url, login_url и др. задаются
+  в base.html. nav_section — из контекст-процессора apps.core.context_processors.nav_section:
+  текущий раздел помечается только aria-current, текст ссылок не меняется.
+{% endcomment %}
+<header class="site-header">
+  <div class="site-header__inner">
+    <a class="logo wordmark" href="{{ home_url|default:'/' }}"><span class="wordmark__mark" aria-hidden="true">¶</span><span class="wordmark__text">Peer Review</span></a>
+    <nav class="site-nav" aria-label="Основная навигация">
+      {% if request.user.is_authenticated %}
+        {% if courses_list_url %}
+          <a class="nav-link" href="{{ courses_list_url }}"{% if nav_section == "courses" %} aria-current="page"{% endif %}>Мои курсы</a>
+        {% endif %}
+        {% if request.user.is_teacher %}
+          {% if course_create_url %}
+            <a class="nav-link" href="{{ course_create_url }}"{% if nav_section == "create" %} aria-current="page"{% endif %}>Создать курс</a>
+          {% endif %}
+        {% elif course_enroll_url %}
+          <a class="nav-link" href="{{ course_enroll_url }}"{% if nav_section == "enroll" %} aria-current="page"{% endif %}>Записаться</a>
+        {% endif %}
+        <span class="site-nav__user">
+          <span class="user-name">Вы вошли как {{ request.user.username }}</span>
+          <span class="badge badge-role user-role">{{ request.user.get_role_display }}</span>
+        </span>
+        {% if logout_url %}
+          <form class="logout-form" method="post" action="{{ logout_url }}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-secondary btn-sm">Выйти</button>
+          </form>
+        {% endif %}
+      {% else %}
+        {% if login_url %}<a class="nav-link" href="{{ login_url }}">Вход</a>{% endif %}
+        {% if signup_url %}<a class="nav-link" href="{{ signup_url }}">Регистрация</a>{% endif %}
+      {% endif %}
+    </nav>
+  </div>
+</header>

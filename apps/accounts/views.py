@@ -1,4 +1,5 @@
 from django.contrib.auth import login
+from django.contrib.auth.views import LogoutView
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 
@@ -18,3 +19,16 @@ def signup(request: HttpRequest) -> HttpResponse:
         login(request, user, backend="django.contrib.auth.backends.ModelBackend")
         return redirect("/")
     return render(request, "accounts/signup.html", {"form": form})
+
+
+class AccountLogoutView(LogoutView):
+    """Выход через форму, с оформленным ответом для остальных методов."""
+
+    http_method_names = ["post"]
+
+    def http_method_not_allowed(
+        self, request: HttpRequest, *args: object, **kwargs: object
+    ) -> HttpResponse:
+        response = render(request, "405.html", status=405)
+        response["Allow"] = "POST"
+        return response

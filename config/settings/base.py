@@ -22,6 +22,9 @@ INSTALLED_APPS = [
     # Приложения проекта (см. docs/ARCHITECTURE.md)
     "apps.core",
     "apps.accounts",
+    "apps.courses",
+    "apps.assignments",
+    "apps.submissions",
 ]
 
 MIDDLEWARE = [
@@ -48,6 +51,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "apps.core.context_processors.nav_section",
             ],
         },
     },
@@ -78,6 +82,7 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
+SUBMISSION_ROOT = BASE_DIR / "private_submissions"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
