@@ -46,9 +46,34 @@
     <p>
       <a class="btn" href="{% url 'assignments:edit' assignment.pk %}">Изменить</a>
     </p>
+    {% if allocation_error %}
+      <p class="alert alert-error" role="alert">{{ allocation_error }}</p>
+    {% endif %}
+    {% if assignment.phase.value == "allocation" %}
+      <form method="post" action="{% url 'reviews:allocate' assignment.pk %}">
+        {% csrf_token %}
+        <button class="btn-primary" type="submit">Распределить</button>
+      </form>
+    {% elif has_allocation %}
+      <p>
+        <a href="{% url 'reviews:manage' assignment.pk %}">Назначения на рецензирование</a>
+      </p>
+    {% endif %}
   {% else %}
     <p>
       <a href="{% url 'submissions:submission' assignment.pk %}">Сдача работы</a>
     </p>
+    {% if review_work_codes %}
+      <section class="card" aria-labelledby="review-work-codes">
+        <h2 id="review-work-codes">Работы для рецензирования</h2>
+        <ul>
+          {% for code in review_work_codes %}
+            <li>
+              <code>{{ code }}</code>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endif %}
   {% endif %}
 {% endblock %}
