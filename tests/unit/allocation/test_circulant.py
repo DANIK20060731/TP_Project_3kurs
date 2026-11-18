@@ -284,14 +284,6 @@ def test_infeasible_configurations(n: int, k: int) -> None:
     ("works", "reviewers"),
     [
         pytest.param(
-            [
-                Work(id="w0", authors=frozenset({"u0", "u5"})),
-                *make_works(5)[1:],
-            ],
-            make_reviewers(6),
-            id="several-authors",
-        ),
-        pytest.param(
             [Work(id="w0", authors=frozenset({"u0", "u5"})), *make_works(5)[1:]],
             make_reviewers(5),
             id="several-authors-second-not-reviewer",
@@ -329,21 +321,14 @@ def test_infeasible_configurations(n: int, k: int) -> None:
         ),
     ],
 )
-def test_input_outside_circulant_scope_is_rejected(works: list[Work], reviewers: list[str]) -> None:
-    """Решение координатора 2: вход вне рамок T-006 даёт InfeasibleAllocation, а не ошибку."""
+def test_invalid_works_or_reviewers_are_rejected(works: list[Work], reviewers: list[str]) -> None:
+    """Невалидные работы или список рецензентов приводят к InfeasibleAllocation."""
     assert_infeasible(works, reviewers, k=1)
 
 
-@pytest.mark.parametrize(
-    "forbidden",
-    [
-        pytest.param(frozenset({("u0", "w1")}), id="real-pair"),
-        pytest.param(frozenset({("u99", "w99")}), id="unknown-pair"),
-    ],
-)
-def test_non_empty_forbidden_is_rejected(forbidden: frozenset[tuple[str, str]]) -> None:
-    """Решение координатора 2: запреты T-006 не поддерживает и не игнорирует молча."""
-    assert_infeasible(make_works(7), make_reviewers(7), k=2, forbidden=forbidden)
+def test_forbidden_with_unknown_ids_is_rejected() -> None:
+    """Неизвестные ссылки в списке запретов приводят к ошибке."""
+    assert_infeasible(make_works(7), make_reviewers(7), k=2, forbidden=frozenset({("u99", "w99")}))
 
 
 def numbers_in(text: str) -> set[str]:
@@ -413,14 +398,14 @@ ERROR_BRANCHES = {
         1,
         r"без\s+автор|нет\s+автор",
     ),
-    "several-authors": ErrorBranch(
+    "missing-team-reviewer": ErrorBranch(
         [
             Work(id="w0", authors=frozenset({f"{AUTHOR_STEM}0", f"{AUTHOR_STEM}5"})),
             *marked_works(5)[1:],
         ],
-        marked_reviewers(6),
+        marked_reviewers(5),
         1,
-        r"нескольк\w*\s+автор",
+        r"совпад",
     ),
     "author-with-two-works": ErrorBranch(
         [*marked_works(5), Work(id="w5", authors=frozenset({f"{AUTHOR_STEM}0"}))],
