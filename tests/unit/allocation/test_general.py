@@ -1,5 +1,6 @@
 """T-007: командный сценарий, запреты и диагностика невыполнимости."""
 
+import time
 from collections import Counter
 from collections.abc import Sequence
 
@@ -115,3 +116,79 @@ def test_single_work_has_no_eligible_reviewer() -> None:
     reason = exc_info.value.reason.casefold()
     assert "w2" in reason
     assert "рецензент" in reason
+
+
+# Первые полукруговые ориентации не содержат нужного цикла целиком. В полном
+# потоке возможна пара u1 ↔ u2, требующая отдельной проверки направлений.
+BRANCHING_ALLOWED = {
+    ("u0", "w1"),
+    ("u0", "w3"),
+    ("u1", "w2"),
+    ("u2", "w1"),
+    ("u2", "w3"),
+    ("u3", "w4"),
+    ("u4", "w0"),
+}
+
+
+def test_search_can_resolve_reciprocal_pair() -> None:
+    """AC-1, AC-4: ветвление находит единственный допустимый цикл."""
+    works = make_individual_works(5)
+    forbidden = forbid_except(works, BRANCHING_ALLOWED)
+
+    result = allocate(works, reviewers_of(works), k=1, forbidden=forbidden, seed=0)
+
+    assert result == {"w0": ["u4"], "w1": ["u0"], "w2": ["u1"], "w3": ["u2"], "w4": ["u3"]}
+
+
+def test_search_limit_does_not_claim_infeasibility(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC-4: при нехватке бюджета выдаётся отдельная причина."""
+    works = make_individual_works(5)
+    forbidden = forbid_except(works, BRANCHING_ALLOWED)
+    monkeypatch.setattr("apps.allocation.general.MAX_ATTEMPTS", 2)
+
+    with pytest.raises(InfeasibleAllocation, match="предел поиска"):
+        allocate(works, reviewers_of(works), k=1, forbidden=forbidden, seed=0)
+
+
+def test_search_proves_no_solution_when_only_reciprocal_pairs_remain() -> None:
+    """AC-4: после проверки всех вариантов доказывается невыполнимость."""
+    works = make_individual_works(5)
+    allowed = (BRANCHING_ALLOWED - {("u2", "w3")}) | {("u0", "w2")}
+    forbidden = forbid_except(works, allowed)
+
+    with pytest.raises(InfeasibleAllocation, match="взаимных пар при заданном балансе"):
+        allocate(works, reviewers_of(works), k=1, forbidden=forbidden, seed=0)
+
+
+@pytest.mark.slow
+def test_sparse_restrictions_at_300_works() -> None:
+    """AC-6, NFR-2: при k=3 направить все допустимые пары быстрее 2 секунд."""
+    n = 300
+    works = [Work(f"w{(index * 137) % n:03}", frozenset({f"u{index}"})) for index in range(n)]
+    allowed = {
+        (f"u{index}", works[(index + shift) % n].id)
+        for index in range(n)
+        for shift in (-3, -2, -1, 1, 2, 3)
+    }
+    reviewers = reviewers_of(works)
+    forbidden = forbid_except(works, allowed)
+
+    started = time.perf_counter()
+    result = allocate(works, reviewers, k=3, forbidden=forbidden, seed=6)
+    elapsed = time.perf_counter() - started
+
+    source = {f"u{index}": work.id for index, work in enumerate(works)}
+    assignments = {
+        (source[reviewer], target) for target, group in result.items() for reviewer in group
+    }
+    assert elapsed < 2
+    assert set(result) == set(source.values())
+    assert all(len(group) == 3 for group in result.values())
+    assert all(
+        (reviewer, target) in allowed for target, group in result.items() for reviewer in group
+    )
+    assert Counter(reviewer for group in result.values() for reviewer in group) == dict.fromkeys(
+        reviewers, 3
+    )
+    assert all((target, origin) not in assignments for origin, target in assignments)
