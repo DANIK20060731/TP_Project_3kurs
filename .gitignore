@@ -12,6 +12,7 @@ htmlcov/
 # Django
 db.sqlite3
 media/
+private_submissions/
 staticfiles/
 
 # Секреты
