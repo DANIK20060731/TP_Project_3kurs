@@ -78,9 +78,21 @@ def test_unknown_ids_in_forbidden_are_reported(unknown_pair: tuple[str, str]) ->
         ),
         pytest.param(
             5,
-            {("u0", "w1"), ("u0", "w2"), ("u1", "w3"), ("u2", "w4"), ("u3", "w0")},
+            {("u0", "w1"), ("u0", "w2"), ("u0", "w4"), ("u1", "w3"), ("u2", "w4"), ("u3", "w0")},
             r"баланс|нагруз",
             id="balanced-load-impossible",
+        ),
+        pytest.param(
+            5,
+            {("u0", "w1"), ("u0", "w2"), ("u1", "w3"), ("u2", "w4"), ("u3", "w0")},
+            r"баланс|нагруз",
+            id="all-pairs-with-unbalanced-vertices",
+        ),
+        pytest.param(
+            4,
+            {("u1", "w0"), ("u3", "w0"), ("u1", "w2"), ("u2", "w1"), ("u2", "w3"), ("u3", "w2")},
+            r"баланс|нагруз",
+            id="all-pairs-with-conflicting-directions",
         ),
     ],
 )
