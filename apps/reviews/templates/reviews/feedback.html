@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Рецензии и оценка — {{ assignment_title }}{% endblock %}
+{% block content %}
+  <h1>Рецензии и оценка</h1>
+  <p>
+    <a href="{% url 'submissions:submission' assignment_pk %}">{{ assignment_title }}</a>
+  </p>
+  <p>
+    Работа <code>{{ public_code }}</code>
+  </p>
+  <section class="card">
+    <h2>Итоговая оценка</h2>
+    {% if feedback.effective_percent is not None %}
+      <p>
+        <strong>{{ feedback.effective_percent|floatformat:"-2" }}%</strong>
+        {% if feedback.override_percent is not None %}— оценка преподавателя{% endif %}
+      </p>
+    {% else %}
+      <p>Итоговая оценка пока отсутствует.</p>
+    {% endif %}
+  </section>
+  {% for review in feedback.reviews %}
+    <article class="card">
+      <h2>Рецензия</h2>
+      {% if review.percent is not None %}<p>Оценка — {{ review.percent|floatformat:"-2" }}%</p>{% endif %}
+      {% if review.comment %}<p>{{ review.comment|linebreaksbr }}</p>{% endif %}
+      <dl class="details">
+        {% for criterion in review.criteria %}
+          <dt>{{ criterion.title }}</dt>
+          <dd>
+            {{ criterion.points|floatformat:"-2" }}
+            {% if criterion.level_description %}— {{ criterion.level_description }}{% endif %}
+            {% if criterion.comment %}<p>{{ criterion.comment|linebreaksbr }}</p>{% endif %}
+          </dd>
+        {% endfor %}
+      </dl>
+    </article>
+  {% empty %}
+    <p>Отправленных рецензий пока нет.</p>
+  {% endfor %}
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Итоговые оценки — {{ assignment.title }}{% endblock %}
+{% block content %}
+  <h1>Итоговые оценки</h1>
+  <p>
+    <a href="{% url 'assignments:detail' assignment.pk %}">{{ assignment.title }}</a>
+  </p>
+  {% if works %}
+    <div class="table-wrap">
+      <table aria-label="Сданные работы">
+        <thead>
+          <tr>
+            <th scope="col">Работа</th>
+            <th scope="col">Авторы</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for work in works %}
+            <tr>
+              <td>
+                <a href="{% url 'reviews:grade' assignment.pk work.public_code %}"><code>{{ work.public_code }}</code></a>
+              </td>
+              <td>
+                {% for author in work.authors.all %}
+                  {{ author.student.username }}{% if not forloop.last %},{% endif %}
+                {% endfor %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p>Работы по заданию ещё не сданы.</p>
+  {% endif %}
+{% endblock %}

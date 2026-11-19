@@ -44,6 +44,7 @@
       <div class="field">
         {{ form.comment.label_tag }}
         {{ form.comment }}
+        {% if editable %}<p class="help">Для анонимности не указывайте имя и контакты в комментариях.</p>{% endif %}
       </div>
     </fieldset>
     {% if editable %}

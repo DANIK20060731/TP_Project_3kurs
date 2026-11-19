@@ -27,7 +27,8 @@ class _SubmittedWork:
     authors: set[int] = field(default_factory=set)
 
 
-def _lock_owned_assignment(owner: User, assignment_pk: int) -> Assignment:
+def lock_owned_assignment(owner: User, assignment_pk: int) -> Assignment:
+    """Захватить строку задания владельца внутри транзакции."""
     if not owner.is_teacher:
         raise PermissionDenied
     assignments = Assignment.objects.filter(pk=assignment_pk, course__owner=owner)
@@ -91,7 +92,7 @@ def _require_rubric(assignment: Assignment) -> None:
 @transaction.atomic
 def run_allocation(owner: User, assignment_pk: int) -> AllocationRun:
     """Рассчитать, сохранить назначения и перевести в фазу рецензирования."""
-    assignment = _lock_owned_assignment(owner, assignment_pk)
+    assignment = lock_owned_assignment(owner, assignment_pk)
     _ensure_allocation_phase(assignment)
     _require_rubric(assignment)
     submitted = _submitted_works(assignment)
@@ -174,7 +175,7 @@ def reassign_review(
     owner: User, assignment_pk: int, review_assignment_pk: int, reviewer_pk: int
 ) -> None:
     """Перенести назначение к другому рецензенту после проверки всего графа."""
-    assignment = _lock_owned_assignment(owner, assignment_pk)
+    assignment = lock_owned_assignment(owner, assignment_pk)
     row = ReviewAssignment.objects.select_related("run").get(
         pk=review_assignment_pk, run__assignment=assignment, submission__assignment=assignment
     )

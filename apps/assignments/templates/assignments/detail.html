@@ -59,6 +59,11 @@
         <a href="{% url 'reviews:manage' assignment.pk %}">Назначения на рецензирование</a>
       </p>
     {% endif %}
+    {% if assignment.phase.value == "closed" %}
+      <p>
+        <a href="{% url 'reviews:grades' assignment.pk %}">Итоговые оценки</a>
+      </p>
+    {% endif %}
   {% else %}
     <p>
       <a href="{% url 'submissions:submission' assignment.pk %}">Сдача работы</a>
