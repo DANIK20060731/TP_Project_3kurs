@@ -45,6 +45,7 @@
   {% if is_owner %}
     <p>
       <a class="btn" href="{% url 'assignments:edit' assignment.pk %}">Изменить</a>
+      <a class="btn" href="{% url 'analytics:dashboard' assignment.pk %}">Дашборд</a>
     </p>
     <p>
       <a href="{% url 'reviews:quality' assignment.pk %}">Качество рецензий</a>

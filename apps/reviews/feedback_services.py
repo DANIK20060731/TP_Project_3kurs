@@ -54,11 +54,11 @@ class _RubricCriterion:
     levels: dict[int, ScaleLevel]
 
 
-def _rubric(submission: Submission) -> dict[int, _RubricCriterion]:
+def feedback_rubric(assignment_id: int) -> dict[int, _RubricCriterion]:
     result = {}
-    criteria = Criterion.objects.filter(
-        rubric__assignment_id=submission.assignment_id
-    ).prefetch_related("levels")
+    criteria = Criterion.objects.filter(rubric__assignment_id=assignment_id).prefetch_related(
+        "levels"
+    )
     for criterion in criteria:
         levels = {level.pk: level for level in criterion.levels.all()}
         spec = CriterionSpec(criterion.weight, tuple(level.points for level in levels.values()))
@@ -66,7 +66,7 @@ def _rubric(submission: Submission) -> dict[int, _RubricCriterion]:
     return result
 
 
-def _anonymous_review(
+def summarize_review(
     comment: str,
     scores: dict[int, tuple[int | None, str]],
     rubric: dict[int, _RubricCriterion],
@@ -106,7 +106,7 @@ def feedback_data(submission: Submission) -> FeedbackData:
     )
     ordered = []
     if rows:
-        rubric = _rubric(submission)
+        rubric = feedback_rubric(submission.assignment_id)
         for review_code, group in groupby(rows, key=lambda row: row[0]):
             review_rows = list(group)
             scores: dict[int, tuple[int | None, str]] = {
@@ -119,7 +119,7 @@ def feedback_data(submission: Submission) -> FeedbackData:
                 f"{submission.public_code}:{review_code}",
                 algorithm="sha256",
             ).digest()
-            ordered.append((display_order, _anonymous_review(review_rows[0][1], scores, rubric)))
+            ordered.append((display_order, summarize_review(review_rows[0][1], scores, rubric)))
 
     reviews = tuple(review for _, review in sorted(ordered, key=lambda row: row[0]))
     percents = [review.percent for review in reviews if review.percent is not None]
