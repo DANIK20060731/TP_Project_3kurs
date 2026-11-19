@@ -1,0 +1,17 @@
+{% if message %}<p>{{ message }}</p>{% endif %}
+{% if form.errors %}
+  <ul class="errorlist">
+    {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+    {% for field in form %}
+      {% for error in field.errors %}<li>{{ field.label }} — {{ error }}</li>{% endfor %}
+    {% endfor %}
+  </ul>
+{% endif %}
+{% if saved %}
+  <input id="id_version"
+         type="hidden"
+         name="version"
+         value="{{ saved.version|stringformat:'d' }}"
+         hx-swap-oob="true">
+  {% if saved.submitted_at %}<span id="review-submit" hx-swap-oob="true"></span>{% endif %}
+{% endif %}

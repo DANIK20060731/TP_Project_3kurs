@@ -8,6 +8,7 @@ from django.contrib.auth.mixins import UserPassesTestMixin
 from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest, HttpResponse
+from django.http.response import HttpResponseBase
 
 
 def _is_teacher(request: HttpRequest) -> bool:
@@ -46,14 +47,14 @@ class TeacherRequiredMixin(UserPassesTestMixin):
         return _is_teacher(self.request)
 
 
-def student_required(view: Callable[..., HttpResponse]) -> Callable[..., HttpResponse]:
+def student_required(view: Callable[..., HttpResponseBase]) -> Callable[..., HttpResponseBase]:
     """Декоратор view: доступ только студенту (роль ``student``).
 
     Гость перенаправляется на страницу входа (с ``next``), преподаватель получает 403.
     """
 
     @wraps(view)
-    def wrapper(request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
+    def wrapper(request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponseBase:
         if not request.user.is_authenticated:
             return redirect_to_login(request.get_full_path())
         if _is_teacher(request):

@@ -11,12 +11,14 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods, require_safe
 
 from apps.accounts.models import User
 from apps.accounts.permissions import teacher_required
 from apps.courses import services as course_services
 from apps.courses.models import Course
+from apps.reviews.services import student_work_codes
 
 from . import services
 from .forms import AssignmentForm
@@ -82,6 +84,7 @@ def assignment_edit(request: HttpRequest, assignment_pk: int) -> HttpResponse:
 
 @login_required
 @require_safe
+@never_cache
 def assignment_detail(request: HttpRequest, assignment_pk: int) -> HttpResponse:
     """Страница задания: владельцу курса и записанным студентам.
 
@@ -93,10 +96,21 @@ def assignment_detail(request: HttpRequest, assignment_pk: int) -> HttpResponse:
         assignment = services.get_assignment_for_user(user, assignment_pk)
     except Assignment.DoesNotExist:
         raise Http404 from None
+    allocation_error = None
+    if user.is_teacher:
+        pending = request.session.get("reviews.allocation_error")
+        if pending and pending["owner"] == user.pk and pending["assignment"] == assignment_pk:
+            allocation_error = request.session.pop("reviews.allocation_error")["reason"]
+
     # В контекст — узкое представление, не ORM-объект: шаблон не дойдёт до связей
     # с пользователями (владелец, записи, будущие работы с авторами).
     context = {
         "assignment": services.assignment_details(assignment),
         "is_owner": user.is_teacher,
+        "allocation_error": allocation_error,
+        "has_allocation": user.is_teacher and assignment.allocated_at is not None,
+        "review_work_codes": student_work_codes(user, assignment_pk)
+        if not user.is_teacher and assignment.allocated_at is not None
+        else (),
     }
     return render(request, "assignments/detail.html", context)

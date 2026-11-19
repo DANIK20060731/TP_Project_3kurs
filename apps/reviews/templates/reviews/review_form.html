@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Рецензия — {{ assignment_title }}{% endblock %}
+{% block content %}
+  <h1>Рецензия</h1>
+  <p>
+    <a href="{% url 'assignments:detail' assignment_pk %}">{{ assignment_title }}</a>
+  </p>
+  <p>
+    Работа <code>{{ public_code }}</code>
+  </p>
+  <p>
+    <a class="btn-secondary" href="{% url 'reviews:download' assignment_pk public_code %}">Скачать работу</a>
+  </p>
+  {% if not editable %}<p class="alert alert-info">Срок рецензирования истёк. Доступен просмотр.</p>{% endif %}
+  <form id="review-form"
+        method="post"
+        action="{% url 'reviews:review' assignment_pk public_code %}"
+        hx-target="#review-feedback"
+        hx-sync="#review-form:queue all">
+    {% csrf_token %}
+    {{ form.version }}
+    <div id="review-feedback" role="status" aria-live="polite">
+      {% if submitted_at %}<p>Рецензия отправлена.</p>{% endif %}
+      {% if form.errors %}
+        {% include "reviews/review_status.html" %}
+      {% endif %}
+    </div>
+    <fieldset {% if not editable %}disabled{% endif %}>
+      <legend>Оценка по рубрике</legend>
+      {% for criterion, level, comment in form.criterion_fields %}
+        <section class="card">
+          <h2>{{ criterion.title }}</h2>
+          {% if criterion.description %}<p>{{ criterion.description|linebreaksbr }}</p>{% endif %}
+          <div class="field">
+            {{ level.label_tag }}
+            {{ level }}
+          </div>
+          <div class="field">
+            {{ comment.label_tag }}
+            {{ comment }}
+          </div>
+        </section>
+      {% endfor %}
+      <div class="field">
+        {{ form.comment.label_tag }}
+        {{ form.comment }}
+      </div>
+    </fieldset>
+    {% if editable %}
+      <div hx-post="{% url 'reviews:autosave' assignment_pk public_code %}"
+           hx-trigger="input changed delay:650ms from:#review-form"
+           hx-include="#review-form"></div>
+      <button class="btn-secondary"
+              type="submit"
+              name="intent"
+              value="draft"
+              hx-post="{% url 'reviews:review' assignment_pk public_code %}"
+              hx-vals='{"intent":"draft"}'>Сохранить</button>
+      <span id="review-submit">
+        {% if not submitted_at %}
+          <button class="btn-primary"
+                  type="submit"
+                  name="intent"
+                  value="submit"
+                  hx-post="{% url 'reviews:review' assignment_pk public_code %}"
+                  hx-vals='{"intent":"submit"}'>Отправить рецензию</button>
+        {% endif %}
+      </span>
+    {% endif %}
+  </form>
+{% endblock %}

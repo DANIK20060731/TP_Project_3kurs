@@ -69,7 +69,7 @@ cov: ## Тесты + отчёт покрытия (порог в pyproject.toml)
 
 check: lint types migrations-check cov ## ПОЛНАЯ проверка = Definition of Done
 
-check-fast: ## Быстрая проверка для хуков агента (~10–20 с)
+check-fast: ## Быстрая проверка для хуков агента (~40 с)
 	@$(RUN) ruff check . --quiet
 	@$(RUN) mypy apps config --no-error-summary
 	@$(PYTEST) -m "not e2e and not slow" -x -q --no-header
