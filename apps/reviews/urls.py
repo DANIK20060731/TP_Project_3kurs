@@ -1,10 +1,17 @@
 from django.urls import path
 
-from . import student_views, views
+from . import feedback_views, student_views, views
 
 app_name = "reviews"
 
 urlpatterns = [
+    path("submissions/<uuid:public_code>/feedback/", feedback_views.feedback, name="feedback"),
+    path("assignments/<int:assignment_pk>/grades/", feedback_views.grades, name="grades"),
+    path(
+        "assignments/<int:assignment_pk>/grades/<uuid:public_code>/",
+        feedback_views.grade,
+        name="grade",
+    ),
     path(
         "assignments/<int:assignment_pk>/review/<uuid:public_code>/",
         student_views.review,

@@ -42,6 +42,7 @@ erDiagram
   Assignment ||--o{ Submission : ""
   Submission }o--o{ User : "authors"
   Submission ||--o{ ReviewAssignment : ""
+  Submission ||--o| SubmissionGrade : "ручной итог"
   User ||--o{ ReviewAssignment : "reviewer"
   ReviewAssignment ||--o| Review : ""
   Review ||--o{ CriterionScore : ""
@@ -64,6 +65,10 @@ erDiagram
 - Для списка работ порядок вычисляется по HMAC от назначения задания,
   рецензента и кода работы с отдельной областью ключа. `AllocationRun.seed`
   для сортировки не используется.
+- С дедлайна авторы получают обезличенные данные отправленных рецензий.
+  Автоматический итог считается как медиана нормализованных оценок в
+  процентах. `SubmissionGrade` хранит ручной итог владельца задания. Если
+  запись существует, её значение имеет приоритет, включая нулевое.
 
 ## Анонимность в views и шаблонах
 Инвариант 1 из `CLAUDE.md` в виде правил для экранов работ и рецензий (сформулированы по итогам аудита T-016). anonymity-auditor проверяет каждое.

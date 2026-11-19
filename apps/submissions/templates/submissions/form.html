@@ -11,6 +11,11 @@
       <a href="{% url 'submissions:submission_download' code %}">Скачать работу</a>
     </p>
   {% endif %}
+  {% if code and assignment.phase.value == "closed" %}
+    <p>
+      <a href="{% url 'reviews:feedback' code %}">Рецензии и итоговая оценка</a>
+    </p>
+  {% endif %}
   {% if expired %}<p>Срок сдачи истёк.</p>{% endif %}
   {% if form %}
     <p>Форматы {{ assignment.allowed_formats|join:", " }}, до {{ assignment.max_file_size_mb }} МБ.</p>

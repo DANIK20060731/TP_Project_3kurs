@@ -1,8 +1,10 @@
 """Назначения на рецензирование, рецензии и оценки по шкале."""
 
+from decimal import Decimal
 from uuid import uuid4
 
 from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 from apps.assignments.models import Assignment, Criterion, ScaleLevel
@@ -96,3 +98,30 @@ class CriterionScore(models.Model):
 
     def __str__(self) -> str:
         return f"Оценка по критерию №{self.pk}"
+
+
+class SubmissionGrade(models.Model):
+    """Итог, выставленный преподавателем вместо медианы."""
+
+    submission = models.OneToOneField(
+        Submission, on_delete=models.CASCADE, related_name="grade_override"
+    )
+    override_percent = models.DecimalField(
+        "Итоговая оценка, %",
+        max_digits=5,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal(0)), MaxValueValidator(Decimal(100))],
+    )
+
+    class Meta:
+        verbose_name = "итоговая оценка преподавателя"
+        verbose_name_plural = "итоговые оценки преподавателя"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(override_percent__gte=0, override_percent__lte=100),
+                name="reviews_override_percent_range",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"Итоговая оценка преподавателя №{self.pk}"
