@@ -17,8 +17,8 @@ from apps.assignments.scoring import CriterionScore as WeightedScore
 from apps.assignments.scoring import CriterionSpec, normalized
 from apps.submissions.models import Submission
 
+from .locks import lock_owned_assignment
 from .models import Review, SubmissionGrade
-from .services import lock_owned_assignment
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -97,6 +97,7 @@ def feedback_data(submission: Submission) -> FeedbackData:
             assignment__submission=submission,
             assignment__run__assignment_id=submission.assignment_id,
             submitted_at__isnull=False,
+            invalidated_at__isnull=True,
         )
         .order_by("pk")
         .values_list(

@@ -79,6 +79,8 @@ def dashboard(assignment: Assignment) -> Dashboard:
             unsubmitted += 1
             continue
         completed += 1
+        if review.invalidated_at is not None:
+            continue
         scores = {
             score.criterion_id: (score.level_id, score.comment) for score in review.scores.all()
         }

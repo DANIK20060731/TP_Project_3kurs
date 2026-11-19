@@ -59,3 +59,23 @@ def test_analytics_requires_owner(client, feedback_case, view):  # noqa: F811
     assert client.get(url).status_code == 403
     client.force_login(TeacherFactory())
     assert client.get(url).status_code == 403
+
+
+def test_invalidated_review_does_not_affect_dashboard_or_csv(client, feedback_case):  # noqa: F811
+    assignment, works, _, reviews = feedback_case
+    client.force_login(assignment.course.owner)
+    with freeze_time(assignment.review_deadline):
+        reviews[1].invalidated_at = assignment.review_deadline
+        reviews[1].save(update_fields=["invalidated_at"])
+        response = client.get(reverse("analytics:dashboard", args=[assignment.pk]))
+        data = response.context["dashboard"]
+        assert data.completed == 2
+        assert not data.works[0].conflict
+        assert len(data.works[0].reviews) == 1
+        assert data.bins[0][1] == 1
+        assert "Опубликованный комментарий 2" not in response.content.decode()
+
+        response = client.get(reverse("analytics:export", args=[assignment.pk]))
+        rows = list(csv.reader(StringIO(response.content.decode("utf-8-sig"))))
+        assert rows[1][0] == str(works[0].public_code)
+        assert rows[1][-1] == "14.29"
