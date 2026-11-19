@@ -1,6 +1,5 @@
 """Экран сдачи и скачивание файла участником работы."""
 
-from pathlib import PurePosixPath
 from typing import cast
 from uuid import UUID
 
@@ -18,12 +17,12 @@ from apps.accounts.models import User
 from apps.assignments.models import Assignment
 from apps.assignments.services import assignment_details
 
+from .attachments import work_attachment
 from .models import Submission
 from .services import (
     save_submission,
     student_assignments,
     student_submissions,
-    submission_storage,
 )
 
 
@@ -115,21 +114,14 @@ def submission_download(request: HttpRequest, public_code: UUID) -> FileResponse
     student = cast(User, request.user)
     submissions = student_submissions(student)
     submission = get_object_or_404(submissions, public_code=public_code)
-    storage = submission_storage()
     try:
-        stream = storage.open(submission.file_key, "rb")
+        return work_attachment(submission)
     except FileNotFoundError:
         # При одновременной замене старый файл мог быть уже удалён.
         submission = get_object_or_404(
             submissions.exclude(file_key=submission.file_key), public_code=public_code
         )
         try:
-            stream = storage.open(submission.file_key, "rb")
+            return work_attachment(submission)
         except FileNotFoundError:
             raise Http404 from None
-    return FileResponse(
-        stream,
-        as_attachment=True,
-        filename=f"{submission.public_code}{PurePosixPath(submission.file_key).suffix}",
-        content_type="application/octet-stream",
-    )

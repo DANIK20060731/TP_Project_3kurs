@@ -1,9 +1,11 @@
-"""Состояние распределения рецензий."""
+"""Назначения на рецензирование, рецензии и оценки по шкале."""
+
+from uuid import uuid4
 
 from django.conf import settings
 from django.db import models
 
-from apps.assignments.models import Assignment
+from apps.assignments.models import Assignment, Criterion, ScaleLevel
 from apps.submissions.models import Submission
 
 
@@ -52,3 +54,45 @@ class ReviewAssignment(models.Model):
 
     def __str__(self) -> str:
         return f"Назначение на рецензию №{self.pk}"
+
+
+class Review(models.Model):
+    """Один черновик или отправленная рецензия на назначение."""
+
+    assignment = models.OneToOneField(
+        ReviewAssignment, on_delete=models.CASCADE, related_name="review"
+    )
+    public_code = models.UUIDField(default=uuid4, editable=False, unique=True)
+    comment = models.TextField(blank=True)
+    version = models.PositiveIntegerField(default=1)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "рецензия"
+        verbose_name_plural = "рецензии"
+
+    def __str__(self) -> str:
+        return f"Рецензия {self.public_code}"
+
+
+class CriterionScore(models.Model):
+    """Выбранный уровень критерия и комментарий рецензента."""
+
+    review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="scores")
+    criterion = models.ForeignKey(Criterion, on_delete=models.RESTRICT)
+    level = models.ForeignKey(ScaleLevel, on_delete=models.RESTRICT, null=True, blank=True)
+    comment = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "оценка по критерию"
+        verbose_name_plural = "оценки по критериям"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["review", "criterion"], name="reviews_unique_review_criterion"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"Оценка по критерию №{self.pk}"

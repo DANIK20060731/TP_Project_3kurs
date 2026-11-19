@@ -8,6 +8,7 @@ from uuid import UUID
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import connection, transaction
 from django.db.models import F
+from django.utils.crypto import salted_hmac
 
 from apps.accounts.models import User
 from apps.allocation import InfeasibleAllocation, Work, allocate
@@ -16,7 +17,8 @@ from apps.assignments.rubric_services import rubric_details
 from apps.courses.models import Enrollment
 from apps.submissions.models import Submission
 
-from .models import AllocationRun, ReviewAssignment
+from .models import AllocationRun, Review, ReviewAssignment
+from .review_services import student_review_assignments
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -177,6 +179,8 @@ def reassign_review(
         pk=review_assignment_pk, run__assignment=assignment, submission__assignment=assignment
     )
     _ensure_review_phase(assignment)
+    if reviewer_pk != row.reviewer_id and Review.objects.filter(assignment=row).exists():
+        raise ValidationError("Рецензент уже начал работу над рецензией.")
     if not _enrolled_reviewers(assignment, {reviewer_pk}):
         raise ValidationError("Рецензент должен быть студентом этого курса.")
     _validate_reassignment(_submitted_works(assignment), row, reviewer_pk)
@@ -189,14 +193,15 @@ def student_work_codes(student: User, assignment_pk: int) -> tuple[UUID, ...]:
     """Доступные студенту работы в виде одних публичных кодов."""
     if student.role != User.Role.STUDENT:
         return ()
-    codes = (
-        ReviewAssignment.objects.filter(
-            reviewer=student,
-            run__assignment_id=assignment_pk,
-            run__assignment__course__enrollments__student=student,
-            submission__assignment_id=assignment_pk,
-        )
-        .order_by("submission__public_code")
-        .values_list("submission__public_code", flat=True)
+    codes = student_review_assignments(student, assignment_pk).values_list(
+        "submission__public_code", flat=True
     )
-    return tuple(codes)
+
+    def display_order(code: UUID) -> bytes:
+        return salted_hmac(
+            "reviews.student-work-order.v1",
+            f"{assignment_pk}:{student.pk}:{code}",
+            algorithm="sha256",
+        ).digest()
+
+    return tuple(sorted(codes, key=display_order))

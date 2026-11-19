@@ -69,7 +69,7 @@
         <ul>
           {% for code in review_work_codes %}
             <li>
-              <code>{{ code }}</code>
+              <a href="{% url 'reviews:review' assignment.pk code %}"><code>{{ code }}</code></a>
             </li>
           {% endfor %}
         </ul>
