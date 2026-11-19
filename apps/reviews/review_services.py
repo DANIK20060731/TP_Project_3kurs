@@ -178,17 +178,27 @@ def save_review(
     now = timezone.now()
     if assignment.phase_at(now) != Phase.REVIEW:
         raise ValidationError("Приём рецензий закрыт.")
+    recorded_scores = {
+        criterion: (level, note)
+        for criterion, (level, note) in scores.items()
+        if level is not None or note
+    }
+    if existing and existing.submitted_at is not None and existing.comment == comment:
+        current_scores: Scores = {
+            criterion_id: (level_id, note)
+            for criterion_id, level_id, note in existing.scores.values_list(
+                "criterion_id", "level_id", "comment"
+            )
+        }
+        if current_scores == recorded_scores:
+            return ReviewState(existing.version, comment, existing.submitted_at, recorded_scores)
+
     review.comment = comment
     review.version = current_version + 1
     if submit and review.submitted_at is None:
         review.submitted_at = now
     review.save()
 
-    recorded_scores = {
-        criterion: (level, note)
-        for criterion, (level, note) in scores.items()
-        if level is not None or note
-    }
     review.scores.all().delete()
     CriterionScore.objects.bulk_create(
         [

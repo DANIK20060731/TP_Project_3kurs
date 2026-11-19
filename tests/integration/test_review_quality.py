@@ -222,3 +222,37 @@ def test_deadline_command_compares_only_submitted_reviews_from_same_assignment(f
     assert str(reviews[0].public_code) in reasons[reviews[1].pk]
     assert str(foreign_review.public_code) not in output.getvalue()
     assert text not in output.getvalue()
+
+
+def test_unchanged_autosave_keeps_moderation_version(client, review_case):
+    assignment, rows, criteria, _ = review_case
+    row = rows[0]
+    data = {
+        "comment": "Короткий текст",
+        "scores": {criterion.pk: (criterion.levels.get().pk, "") for criterion in criteria},
+    }
+    state = save_review(
+        row.reviewer, assignment.pk, row.submission.public_code, version=0, submit=True, **data
+    )
+    review = Review.objects.get(assignment=row)
+    flag = QualityFlag.objects.get(review=review, detector="too_short")
+    client.force_login(assignment.course.owner)
+    dismiss = reverse("reviews:dismiss_flag", args=[assignment.pk, flag.pk])
+    version = {"version": state.version}
+    assert client.post(dismiss, version).status_code == 302
+    flag.refresh_from_db()
+    dismissed_at = flag.dismissed_at
+
+    autosaved = save_review(
+        row.reviewer,
+        assignment.pk,
+        row.submission.public_code,
+        version=state.version,
+        submit=False,
+        **data,
+    )
+    assert autosaved.version == state.version
+    flag.refresh_from_db()
+    assert flag.dismissed_at == dismissed_at
+    invalidate = reverse("reviews:invalidate_review", args=[assignment.pk, review.public_code])
+    assert client.post(invalidate, version).status_code == 302
