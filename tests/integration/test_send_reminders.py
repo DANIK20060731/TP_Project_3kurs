@@ -7,6 +7,7 @@ from django.core.management.base import CommandError
 from django.utils import timezone
 from freezegun import freeze_time
 
+from apps.reviews.models import AllocationRun, Review, ReviewAssignment
 from apps.submissions.models import ReminderLog, Submission, SubmissionAuthor
 from tests.factories import AssignmentFactory, EnrollmentFactory, UserFactory
 
@@ -82,3 +83,72 @@ def test_failed_reminder_can_be_retried(mailoutbox, monkeypatch, result):
     assert not ReminderLog.objects.exists()
     call_command("send_reminders")
     assert [message.to for message in mailoutbox] == [[student.email]]
+
+
+def test_review_emails_respect_submission_status_deadlines_and_anonymity(mailoutbox):
+    with freeze_time("2026-11-19 09:00:00") as clock:
+        assignment = AssignmentFactory(
+            submission_deadline=timezone.now() - timedelta(hours=1),
+            review_deadline=timezone.now() + timedelta(hours=25),
+        )
+        author, coauthor, pending, finished, unassigned = [
+            EnrollmentFactory(course=assignment.course).student for _ in range(5)
+        ]
+        submission = Submission.objects.create(
+            assignment=assignment, submitted_by=author, file_key="private-filename"
+        )
+        SubmissionAuthor.objects.create(
+            assignment=assignment, submission=submission, student=coauthor
+        )
+        run = AllocationRun.objects.create(
+            assignment=assignment, seed=1, k=2, algorithm=AllocationRun.Algorithm.FLOW
+        )
+        draft_assignment = ReviewAssignment.objects.create(
+            run=run, submission=submission, reviewer=pending
+        )
+        Review.objects.create(assignment=draft_assignment, comment="private-draft")
+        final_assignment = ReviewAssignment.objects.create(
+            run=run, submission=submission, reviewer=finished
+        )
+        Review.objects.create(
+            assignment=final_assignment, comment="private-review", submitted_at=timezone.now()
+        )
+
+        def recipients(kind, hours=0):
+            return set(
+                ReminderLog.objects.filter(kind=kind, hours_before_deadline=hours).values_list(
+                    "student_id", flat=True
+                )
+            )
+
+        kind = ReminderLog.Kind
+        call_command("send_reminders")
+        call_command("send_reminders")
+        assert recipients(kind.ASSIGNED) == {pending.pk, finished.pk}
+        assert len(mailoutbox) == 2
+
+        clock.tick(timedelta(hours=1))
+        call_command("send_reminders")
+        assert recipients(kind.REVIEW, 24) == {pending.pk}
+        clock.tick(timedelta(hours=22))
+        call_command("send_reminders")
+        assert recipients(kind.REVIEW, 2) == {pending.pk}
+        assert not recipients(kind.RECEIVED)
+        assert len(mailoutbox) == 4
+
+        clock.tick(timedelta(hours=2))
+        call_command("send_reminders")
+        call_command("send_reminders")
+        assert recipients(kind.RECEIVED) == {author.pk, coauthor.pk}
+        assert {tuple(message.to) for message in mailoutbox[4:]} == {
+            (author.email,),
+            (coauthor.email,),
+        }
+        assert len(mailoutbox) == 6
+        for message in mailoutbox:
+            content = message.subject + message.body
+            for student in (author, coauthor, pending, finished, unassigned):
+                assert student.username not in content
+                assert student.email not in content
+            assert str(submission.public_code) not in content
+            assert "private-" not in content

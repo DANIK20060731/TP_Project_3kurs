@@ -42,20 +42,27 @@ class SubmissionAuthor(models.Model):
 
 
 class ReminderLog(models.Model):
-    """Отправленное напоминание о сдаче."""
+    """Отправленное письмо по заданию."""
+
+    class Kind(models.TextChoices):
+        SUBMISSION = "submission", "Дедлайн сдачи"
+        REVIEW = "review", "Дедлайн рецензирования"
+        ASSIGNED = "assigned", "Назначение рецензий"
+        RECEIVED = "received", "Получение рецензий"
 
     assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE)
     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.SUBMISSION)
     hours_before_deadline = models.PositiveSmallIntegerField()
     sent_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["assignment", "student", "hours_before_deadline"],
+                fields=["assignment", "student", "kind", "hours_before_deadline"],
                 name="submissions_unique_deadline_reminder",
             )
         ]
 
     def __str__(self) -> str:
-        return f"Напоминание о сдаче ({self.hours_before_deadline} ч)"
+        return f"{self.get_kind_display()} ({self.hours_before_deadline} ч)"
