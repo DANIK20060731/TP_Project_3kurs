@@ -46,6 +46,9 @@
     <p>
       <a class="btn" href="{% url 'assignments:edit' assignment.pk %}">Изменить</a>
     </p>
+    <p>
+      <a href="{% url 'reviews:quality' assignment.pk %}">Качество рецензий</a>
+    </p>
     {% if allocation_error %}
       <p class="alert alert-error" role="alert">{{ allocation_error }}</p>
     {% endif %}

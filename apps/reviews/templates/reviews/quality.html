@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Качество рецензий — {{ assignment.title }}{% endblock %}
+{% block content %}
+  <h1>Качество рецензий</h1>
+  <p>
+    <a href="{% url 'assignments:detail' assignment.pk %}">{{ assignment.title }}</a>
+  </p>
+  <section class="card">
+    <h2>Пороги проверок</h2>
+    <form method="post" class="form-narrow">
+      {% csrf_token %}
+      {% include "_form_fields.html" %}
+      <button type="submit" class="btn-primary">Сохранить пороги</button>
+    </form>
+  </section>
+  <h2>Флаги</h2>
+  {% regroup flags by review as flagged_reviews %}
+  {% for group in flagged_reviews %}
+    <article class="card">
+      <h3>
+        Рецензия <code>{{ group.grouper.public_code }}</code>
+      </h3>
+      {% if group.grouper.comment %}<p>{{ group.grouper.comment|linebreaksbr }}</p>{% endif %}
+      <ul>
+        {% for flag in group.list %}
+          <li>
+            <p>{{ flag.reason }}</p>
+            {% if flag.dismissed_at %}
+              <p>Флаг отклонён.</p>
+            {% else %}
+              <form method="post" action="{% url 'reviews:dismiss_flag' assignment.pk flag.pk %}">
+                {% csrf_token %}
+                <input type="hidden" name="version" value="{{ flag.review_version|stringformat:'d' }}">
+                <button type="submit" class="btn-secondary">Отклонить флаг</button>
+              </form>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+      <form method="post"
+            action="{% url 'reviews:invalidate_review' assignment.pk group.grouper.public_code %}">
+        {% csrf_token %}
+        <input type="hidden" name="version" value="{{ group.grouper.version|stringformat:'d' }}">
+        <button type="submit" class="btn-secondary">Аннулировать рецензию</button>
+      </form>
+    </article>
+  {% empty %}
+    <p>Флагов пока нет.</p>
+  {% endfor %}
+  {% if invalidated %}
+    <section class="card">
+      <h2>Аннулированные рецензии</h2>
+      <ul>
+        {% for review in invalidated %}
+          <li>
+            <code>{{ review.public_code }}</code>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+{% endblock %}

@@ -6,14 +6,16 @@ from decimal import Decimal
 from uuid import UUID
 
 from django.core.exceptions import ValidationError
-from django.db import connection, transaction
-from django.db.models import F, QuerySet
+from django.db import transaction
+from django.db.models import QuerySet
 from django.utils import timezone
 
 from apps.accounts.models import User
 from apps.assignments.models import Assignment, Criterion, Phase
 
+from .locks import lock_assignment
 from .models import CriterionScore, Review, ReviewAssignment
+from .quality_services import refresh_quality
 
 MAX_REVIEW_COMMENT = 10_000
 MAX_CRITERION_COMMENT = 2_000
@@ -46,6 +48,7 @@ class ReviewState:
     comment: str
     submitted_at: datetime | None
     scores: Scores
+    invalidated: bool = False
 
 
 def student_review_assignments(student: User, assignment_pk: int) -> QuerySet[ReviewAssignment]:
@@ -94,6 +97,7 @@ def review_state(row: ReviewAssignment) -> ReviewState:
             "version",
             "comment",
             "submitted_at",
+            "invalidated_at",
             "scores__criterion_id",
             "scores__level_id",
             "scores__comment",
@@ -101,24 +105,24 @@ def review_state(row: ReviewAssignment) -> ReviewState:
     )
     if not snapshot:
         return ReviewState(0, "", None, {})
-    version, comment, submitted_at, *_ = snapshot[0]
+    version, comment, submitted_at, invalidated_at, *_ = snapshot[0]
     scores: Scores = {
         criterion: (level, note or "")
-        for _, _, _, criterion, level, note in snapshot
+        for _, _, _, _, criterion, level, note in snapshot
         if criterion is not None
     }
-    return ReviewState(version, comment, submitted_at, scores)
+    return ReviewState(
+        version, comment, submitted_at, scores, invalidated=invalidated_at is not None
+    )
 
 
 def _lock_review_assignment(student: User, assignment_pk: int, public_code: UUID) -> Assignment:
     eligible = student_review_assignments(student, assignment_pk).filter(
         submission__public_code=public_code
     )
-    assignments = Assignment.objects.filter(pk__in=eligible.values("run__assignment_id"))
-    if connection.vendor == "sqlite":
-        # Первое обращение к БД захватывает запись до чтения версии рецензии.
-        assignments.update(id=F("id"))
-    assignment = assignments.select_for_update(of=("self",)).first()
+    assignment = lock_assignment(
+        Assignment.objects.filter(pk__in=eligible.values("run__assignment_id"))
+    )
     if assignment is None:
         raise ReviewAssignment.DoesNotExist
     return assignment
@@ -162,6 +166,8 @@ def save_review(
         raise ValidationError("Приём рецензий закрыт.")
 
     existing = Review.objects.filter(assignment=row).first()
+    if existing and existing.invalidated_at is not None:
+        raise ValidationError("Рецензия недоступна для редактирования.")
     current_version = existing.version if existing else 0
     if version != current_version:
         raise StaleReviewError("Рецензия обновилась. Перезагрузите страницу перед сохранением.")
@@ -190,4 +196,6 @@ def save_review(
             for criterion, (level, note) in recorded_scores.items()
         ]
     )
+    if review.submitted_at is not None:
+        refresh_quality(assignment)
     return ReviewState(review.version, review.comment, review.submitted_at, recorded_scores)

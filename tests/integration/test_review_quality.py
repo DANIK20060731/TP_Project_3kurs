@@ -159,3 +159,66 @@ def test_moderation_is_private_and_invalidation_recalculates_feedback(client, fe
         assert "restricted-reason" not in body
         assert str(partner.public_code) not in body
         assert "0.81237" not in body and "0,81237" not in body
+
+
+def test_old_moderation_form_does_not_affect_new_version(client, feedback_case):
+    assignment, _, _, reviews = feedback_case
+    review = reviews[0]
+    review.version = 2
+    review.save(update_fields=["version"])
+    flag = QualityFlag.objects.create(
+        review=review, detector="too_short", reason="Новая версия", score=1, review_version=2
+    )
+    client.force_login(assignment.course.owner)
+
+    response = client.post(
+        reverse("reviews:dismiss_flag", args=[assignment.pk, flag.pk]), {"version": 1}
+    )
+    assert response.status_code == 400
+    response = client.post(
+        reverse("reviews:invalidate_review", args=[assignment.pk, review.public_code]),
+        {"version": 1},
+    )
+    assert response.status_code == 400
+
+    flag.refresh_from_db()
+    review.refresh_from_db()
+    assert flag.dismissed_at is None
+    assert review.invalidated_at is None
+
+
+def test_deadline_command_compares_only_submitted_reviews_from_same_assignment(feedback_case):
+    from io import StringIO
+
+    from django.core.management import call_command
+
+    from apps.reviews.models import AllocationRun, ReviewAssignment
+    from tests.integration.test_allocation_run import assignment_for_allocation
+
+    assignment, _, _, reviews = feedback_case
+    text = "В этом подробном отзыве разобраны методы решения, обоснования и сделанные выводы."
+    Review.objects.filter(pk__in=[review.pk for review in reviews]).update(comment=text)
+    foreign, works, teams = assignment_for_allocation((1, 1, 1))
+    foreign_run = AllocationRun.objects.create(
+        assignment=foreign, seed=10, k=1, algorithm="circulant"
+    )
+    foreign_review = Review.objects.create(
+        assignment=ReviewAssignment.objects.create(
+            run=foreign_run, submission=works[1], reviewer=teams[0][0]
+        ),
+        comment=text,
+        submitted_at=timezone.now(),
+    )
+    now = max(assignment.review_deadline, foreign.review_deadline)
+    output = StringIO()
+    with freeze_time(now):
+        call_command("scan_review_quality", stdout=output)
+
+    reasons = dict(
+        QualityFlag.objects.filter(detector="copy_paste").values_list("review_id", "reason")
+    )
+    assert reasons.keys() == {reviews[0].pk, reviews[1].pk}
+    assert str(reviews[1].public_code) in reasons[reviews[0].pk]
+    assert str(reviews[0].public_code) in reasons[reviews[1].pk]
+    assert str(foreign_review.public_code) not in output.getvalue()
+    assert text not in output.getvalue()
