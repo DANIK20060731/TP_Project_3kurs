@@ -94,9 +94,9 @@ class Command(BaseCommand):
                     Q(Exists(own_assignments.filter(review__submitted_at__isnull=True))),
                 )
         else:
-            reviewed_submissions = assignments.filter(review__submitted_at__isnull=False).values(
-                "submission_id"
-            )
+            reviewed_submissions = assignments.filter(
+                review__submitted_at__isnull=False, review__invalidated_at__isnull=True
+            ).values("submission_id")
             yield (
                 Kind.RECEIVED,
                 0,

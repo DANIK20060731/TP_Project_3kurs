@@ -45,6 +45,10 @@
   {% if is_owner %}
     <p>
       <a class="btn" href="{% url 'assignments:edit' assignment.pk %}">Изменить</a>
+      <a class="btn" href="{% url 'analytics:dashboard' assignment.pk %}">Дашборд</a>
+    </p>
+    <p>
+      <a href="{% url 'reviews:quality' assignment.pk %}">Качество рецензий</a>
     </p>
     {% if allocation_error %}
       <p class="alert alert-error" role="alert">{{ allocation_error }}</p>
@@ -57,6 +61,11 @@
     {% elif has_allocation %}
       <p>
         <a href="{% url 'reviews:manage' assignment.pk %}">Назначения на рецензирование</a>
+      </p>
+    {% endif %}
+    {% if assignment.phase.value == "closed" %}
+      <p>
+        <a href="{% url 'reviews:grades' assignment.pk %}">Итоговые оценки</a>
       </p>
     {% endif %}
   {% else %}

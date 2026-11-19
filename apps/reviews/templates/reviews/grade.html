@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Итоговая оценка — {{ assignment.title }}{% endblock %}
+{% block content %}
+  <h1>Итоговая оценка</h1>
+  <p>
+    <a href="{% url 'reviews:grades' assignment.pk %}">Все работы задания</a>
+  </p>
+  <p>
+    Работа <code>{{ work.public_code }}</code>
+  </p>
+  <div class="card">
+    <dl class="details">
+      <dt>Автоматический итог</dt>
+      <dd>
+        {% if feedback.median_percent is not None %}
+          {{ feedback.median_percent|floatformat:"-2" }}%
+        {% else %}
+          Нет оценки по рецензиям
+        {% endif %}
+      </dd>
+      <dt>Текущий итог</dt>
+      <dd>
+        {% if feedback.effective_percent is not None %}
+          <strong>{{ feedback.effective_percent|floatformat:"-2" }}%</strong>
+        {% else %}
+          Пока отсутствует
+        {% endif %}
+      </dd>
+    </dl>
+  </div>
+  <form method="post" class="form-narrow">
+    {% csrf_token %}
+    {% include "_form_fields.html" %}
+    <button type="submit" class="btn-primary">Сохранить итог</button>
+  </form>
+{% endblock %}

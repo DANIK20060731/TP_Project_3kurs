@@ -5,9 +5,8 @@ from collections import Counter
 from dataclasses import dataclass, field
 from uuid import UUID
 
-from django.core.exceptions import PermissionDenied, ValidationError
-from django.db import connection, transaction
-from django.db.models import F
+from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.utils.crypto import salted_hmac
 
 from apps.accounts.models import User
@@ -17,6 +16,7 @@ from apps.assignments.rubric_services import rubric_details
 from apps.courses.models import Enrollment
 from apps.submissions.models import Submission
 
+from .locks import lock_owned_assignment
 from .models import AllocationRun, Review, ReviewAssignment
 from .review_services import student_review_assignments
 
@@ -25,22 +25,6 @@ from .review_services import student_review_assignments
 class _SubmittedWork:
     code: UUID
     authors: set[int] = field(default_factory=set)
-
-
-def _lock_owned_assignment(owner: User, assignment_pk: int) -> Assignment:
-    if not owner.is_teacher:
-        raise PermissionDenied
-    assignments = Assignment.objects.filter(pk=assignment_pk, course__owner=owner)
-    if connection.vendor == "sqlite":
-        # SQLite не поддерживает SELECT FOR UPDATE. Первая операция начинает запись,
-        # как в сервисе сдачи работ, и не захватывает чужое задание.
-        assignments.update(id=F("id"))
-    assignment = assignments.select_for_update(of=("self",)).first()
-    if assignment is None:
-        if Assignment.objects.filter(pk=assignment_pk).exists():
-            raise PermissionDenied
-        raise Assignment.DoesNotExist
-    return assignment
 
 
 def _submitted_works(assignment: Assignment) -> dict[int, _SubmittedWork]:
@@ -91,7 +75,7 @@ def _require_rubric(assignment: Assignment) -> None:
 @transaction.atomic
 def run_allocation(owner: User, assignment_pk: int) -> AllocationRun:
     """Рассчитать, сохранить назначения и перевести в фазу рецензирования."""
-    assignment = _lock_owned_assignment(owner, assignment_pk)
+    assignment = lock_owned_assignment(owner, assignment_pk)
     _ensure_allocation_phase(assignment)
     _require_rubric(assignment)
     submitted = _submitted_works(assignment)
@@ -174,7 +158,7 @@ def reassign_review(
     owner: User, assignment_pk: int, review_assignment_pk: int, reviewer_pk: int
 ) -> None:
     """Перенести назначение к другому рецензенту после проверки всего графа."""
-    assignment = _lock_owned_assignment(owner, assignment_pk)
+    assignment = lock_owned_assignment(owner, assignment_pk)
     row = ReviewAssignment.objects.select_related("run").get(
         pk=review_assignment_pk, run__assignment=assignment, submission__assignment=assignment
     )
@@ -185,8 +169,10 @@ def reassign_review(
         raise ValidationError("Рецензент должен быть студентом этого курса.")
     _validate_reassignment(_submitted_works(assignment), row, reviewer_pk)
     _ensure_review_phase(assignment)
-    row.reviewer_id = reviewer_pk
-    row.save(update_fields=["reviewer"])
+    if reviewer_pk != row.reviewer_id:
+        row.reviewer_id = reviewer_pk
+        row.opened_at = None
+        row.save(update_fields=["reviewer", "opened_at"])
 
 
 def student_work_codes(student: User, assignment_pk: int) -> tuple[UUID, ...]:

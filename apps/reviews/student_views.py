@@ -15,7 +15,7 @@ from apps.accounts.permissions import student_required
 from apps.assignments.models import Phase
 from apps.submissions.attachments import work_attachment
 
-from . import review_services
+from . import quality_services, review_services
 from .forms import ReviewForm
 from .models import ReviewAssignment
 
@@ -33,6 +33,14 @@ def _write(
     row = _assigned(request, assignment_pk, public_code)
     criteria = review_services.review_criteria(row)
     state = review_services.review_state(row)
+    assignment = row.run.assignment
+    if (
+        request.method == "GET"
+        and assignment.phase == Phase.REVIEW
+        and row.opened_at is None
+        and state.submitted_at is None
+    ):
+        quality_services.mark_review_opened(row)
     is_htmx = request.headers.get("HX-Request") == "true"
     form = ReviewForm(criteria, state, request.POST if request.method == "POST" else None)
     status = 200
@@ -79,8 +87,7 @@ def _write(
         if is_htmx:
             return render(request, "reviews/review_status.html", {"form": form})
 
-    assignment = row.run.assignment
-    editable = assignment.phase == Phase.REVIEW
+    editable = assignment.phase == Phase.REVIEW and not state.invalidated
     if not editable and form.is_bound:
         form = ReviewForm(criteria, state)
     return render(
@@ -92,6 +99,7 @@ def _write(
             "public_code": public_code,
             "form": form,
             "editable": editable,
+            "invalidated": state.invalidated,
             "submitted_at": state.submitted_at,
         },
         status=status,

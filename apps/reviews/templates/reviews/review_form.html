@@ -11,7 +11,11 @@
   <p>
     <a class="btn-secondary" href="{% url 'reviews:download' assignment_pk public_code %}">Скачать работу</a>
   </p>
-  {% if not editable %}<p class="alert alert-info">Срок рецензирования истёк. Доступен просмотр.</p>{% endif %}
+  {% if invalidated %}
+    <p class="alert alert-info">Редактирование этой рецензии недоступно.</p>
+  {% elif not editable %}
+    <p class="alert alert-info">Срок рецензирования истёк. Доступен просмотр.</p>
+  {% endif %}
   <form id="review-form"
         method="post"
         action="{% url 'reviews:review' assignment_pk public_code %}"
@@ -44,6 +48,7 @@
       <div class="field">
         {{ form.comment.label_tag }}
         {{ form.comment }}
+        {% if editable %}<p class="help">Для анонимности не указывайте имя и контакты в комментариях.</p>{% endif %}
       </div>
     </fieldset>
     {% if editable %}

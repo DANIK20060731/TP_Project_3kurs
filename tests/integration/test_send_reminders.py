@@ -85,7 +85,8 @@ def test_failed_reminder_can_be_retried(mailoutbox, monkeypatch, result):
     assert [message.to for message in mailoutbox] == [[student.email]]
 
 
-def test_review_emails_respect_submission_status_deadlines_and_anonymity(mailoutbox):
+@pytest.mark.parametrize("invalidated", [False, True])
+def test_review_emails_respect_submission_status_deadlines_and_anonymity(mailoutbox, invalidated):
     with freeze_time("2026-11-19 09:00:00") as clock:
         assignment = AssignmentFactory(
             submission_deadline=timezone.now() - timedelta(hours=1),
@@ -110,7 +111,7 @@ def test_review_emails_respect_submission_status_deadlines_and_anonymity(mailout
         final_assignment = ReviewAssignment.objects.create(
             run=run, submission=submission, reviewer=finished
         )
-        Review.objects.create(
+        final_review = Review.objects.create(
             assignment=final_assignment, comment="private-review", submitted_at=timezone.now()
         )
 
@@ -137,14 +138,16 @@ def test_review_emails_respect_submission_status_deadlines_and_anonymity(mailout
         assert len(mailoutbox) == 4
 
         clock.tick(timedelta(hours=2))
+        if invalidated:
+            final_review.invalidated_at = timezone.now()
+            final_review.save(update_fields=["invalidated_at"])
         call_command("send_reminders")
         call_command("send_reminders")
-        assert recipients(kind.RECEIVED) == {author.pk, coauthor.pk}
-        assert {tuple(message.to) for message in mailoutbox[4:]} == {
-            (author.email,),
-            (coauthor.email,),
-        }
-        assert len(mailoutbox) == 6
+        expected_students = set() if invalidated else {author.pk, coauthor.pk}
+        expected_emails = set() if invalidated else {(author.email,), (coauthor.email,)}
+        assert recipients(kind.RECEIVED) == expected_students
+        assert {tuple(message.to) for message in mailoutbox[4:]} == expected_emails
+        assert len(mailoutbox) == 4 + len(expected_emails)
         for message in mailoutbox:
             content = message.subject + message.body
             for student in (author, coauthor, pending, finished, unassigned):
