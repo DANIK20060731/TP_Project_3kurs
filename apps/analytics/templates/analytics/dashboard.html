@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Дашборд — {{ assignment.title }}{% endblock %}
+{% block content %}
+  <p><a href="{% url 'assignments:detail' assignment.pk %}">{{ assignment.title }}</a></p>
+  <h1>Дашборд задания</h1>
+  <p><a class="btn" href="{% url 'analytics:export' assignment.pk %}">Скачать оценки CSV</a></p>
+  <section class="card" aria-labelledby="participation">
+    <h2 id="participation">Участие</h2>
+    <dl class="details">
+      <dt>Студентов сдали работу</dt>
+      <dd>
+        {{ dashboard.submitted }}
+      </dd>
+      <dt>Студентов без сдачи</dt>
+      <dd>
+        {{ dashboard.missing }}
+      </dd>
+      <dt>Рецензий отправлено</dt>
+      <dd>
+        {{ dashboard.completed }}
+      </dd>
+      <dt>Рецензий ожидается</dt>
+      <dd>
+        {{ dashboard.pending }}
+      </dd>
+      <dt>Рецензий просрочено</dt>
+      <dd>
+        {{ dashboard.overdue }}
+      </dd>
+    </dl>
+  </section>
+  <section class="card" aria-labelledby="histogram">
+    <h2 id="histogram">Распределение итоговых оценок</h2>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Итог, %</th>
+          <th scope="col">Работ</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for label, count in dashboard.bins %}
+          <tr>
+            <th scope="row">{{ label }}</th>
+            <td>
+              {% if dashboard.works %}<meter min="0"
+       max="{{ dashboard.works|length }}"
+       value="{{ count }}"
+       aria-label="Работ в диапазоне {{ label }}%">{{ count }}</meter>{% endif %}
+              {{ count }}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  <section class="card" aria-labelledby="outliers">
+    <h2 id="outliers">Рецензенты с систематическим отклонением</h2>
+    <ul>
+      {% for reviewer, deviation in dashboard.outliers %}
+        <li>{{ reviewer }} · {{ deviation|floatformat:2 }} п. п.</li>
+      {% empty %}
+        <li>Отклонений выше порога нет.</li>
+      {% endfor %}
+    </ul>
+  </section>
+  <section aria-labelledby="works">
+    <h2 id="works">Работы и рецензии</h2>
+    {% for work in dashboard.works %}
+      <article class="card">
+        <h3>{{ work.authors|join:", " }}</h3>
+        <p>
+          <code class="token">{{ work.code }}</code>
+          {% if work.conflict %}<strong>Конфликт оценок</strong>{% endif %}
+        </p>
+        <p>
+          Итог:
+          {% if work.grade is not None %}
+            {{ work.grade|floatformat:2 }} %
+          {% else %}
+            —
+          {% endif %}
+          {% if assignment.phase.value == "closed" %}
+            <a href="{% url 'reviews:grade' assignment.pk work.code %}">Изменить итог</a>
+          {% endif %}
+        </p>
+        {% for review in work.reviews %}
+          <details {% if work.conflict %}open{% endif %}>
+            <summary>
+              {{ review.reviewer }}
+              {% if review.feedback.percent is not None %}· {{ review.feedback.percent|floatformat:2 }} %{% endif %}
+            </summary>
+            {% if review.feedback.comment %}<p>{{ review.feedback.comment|linebreaksbr }}</p>{% endif %}
+            <ul>
+              {% for criterion in review.feedback.criteria %}
+                <li>
+                  {{ criterion.title }} · {{ criterion.points }} — {{ criterion.level_description }}
+                  {% if criterion.comment %}<p>{{ criterion.comment|linebreaksbr }}</p>{% endif %}
+                </li>
+              {% endfor %}
+            </ul>
+          </details>
+        {% empty %}
+          <p>Отправленных рецензий пока нет.</p>
+        {% endfor %}
+      </article>
+    {% empty %}
+      <p>Работ пока нет.</p>
+    {% endfor %}
+  </section>
+{% endblock %}
