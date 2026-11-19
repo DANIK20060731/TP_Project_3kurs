@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Protocol
 
 
@@ -17,7 +18,7 @@ class ReviewText:
     review_id: str
     reviewer_id: str = field(repr=False)
     comment: str = field(repr=False)
-    scores: tuple[int, ...]
+    scores: tuple[int | Decimal, ...]
     seconds_spent: int | None
 
 

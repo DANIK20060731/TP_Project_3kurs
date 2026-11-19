@@ -1,10 +1,21 @@
 from django.urls import path
 
-from . import feedback_views, student_views, views
+from . import feedback_views, quality_views, student_views, views
 
 app_name = "reviews"
 
 urlpatterns = [
+    path("assignments/<int:assignment_pk>/quality/", quality_views.quality, name="quality"),
+    path(
+        "assignments/<int:assignment_pk>/quality/flags/<int:flag_pk>/dismiss/",
+        quality_views.dismiss_flag,
+        name="dismiss_flag",
+    ),
+    path(
+        "assignments/<int:assignment_pk>/quality/reviews/<uuid:review_code>/invalidate/",
+        quality_views.invalidate_review,
+        name="invalidate_review",
+    ),
     path("submissions/<uuid:public_code>/feedback/", feedback_views.feedback, name="feedback"),
     path("assignments/<int:assignment_pk>/grades/", feedback_views.grades, name="grades"),
     path(
